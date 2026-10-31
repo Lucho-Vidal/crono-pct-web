@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="cronoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1f6fb2" />
+      <stop offset="100%" stop-color="#0e3a60" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00d2ff" />
+      <stop offset="100%" stop-color="#0080ff" />
+    </linearGradient>
+  </defs>
+  <!-- Base circular -->
+  <circle cx="64" cy="64" r="58" fill="url(#cronoGrad)" stroke="#ffffff" stroke-width="4" />
+  
+  <!-- Reloj / Crono -->
+  <circle cx="64" cy="64" r="44" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-width="3" stroke-dasharray="6,4" />
+  
+  <!-- Cuadrante de turnos -->
+  <path d="M 64 24 A 40 40 0 0 1 104 64 L 64 64 Z" fill="url(#accentGrad)" fill-opacity="0.85" />
+  <path d="M 64 64 L 64 104 A 40 40 0 0 1 24 64 Z" fill="#ffff00" fill-opacity="0.75" />
+  
+  <!-- Agujas del reloj -->
+  <circle cx="64" cy="64" r="6" fill="#ffffff" />
+  <line x1="64" y1="64" x2="64" y2="34" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+  <line x1="64" y1="64" x2="88" y2="64" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+  
+  <!-- Pulsador superior del cronómetro -->
+  <rect x="58" y="2" width="12" height="6" rx="2" fill="#ffffff" />
+  <rect x="62" y="8" width="4" height="4" fill="#ffffff" />
+</svg>

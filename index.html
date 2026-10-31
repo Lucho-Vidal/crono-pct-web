@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CRONO-WEB - Gestión de Turnos y Personal</title>
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#1A73E8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CRONO">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icons/crono_icon.svg">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Barra Superior / Header Principal -->
+  <header class="top-header">
+    <div class="brand-section">
+      <img src="icons/crono_icon.svg" alt="CRONO" class="brand-logo">
+      <span class="brand-title">CRONO-PCT</span>
+      <span class="brand-badge">v1.0.0-web</span>
+    </div>
+
+    <div class="header-actions">
+      <div class="status-dot" id="status-dot" title="En línea"></div>
+      
+      <button class="btn btn-primary btn-pill" id="btn-instalar-app" style="display: none; padding: 4px 10px; font-size: 11px;">
+        📲 Instalar App
+      </button>
+
+      <button class="btn-icon" id="btn-header-sync" title="Sincronizar ahora con Supabase">🔄</button>
+      <button class="btn-icon" id="btn-header-config" title="Configurar Conexión Supabase">⚙️</button>
+
+      <div class="user-badge" id="header-user-badge">
+        <span id="header-user-name">Usuario</span>
+        <span class="brand-badge" id="header-user-role" style="background-color: rgba(255,255,255,0.2);">ROL</span>
+      </div>
+
+      <button class="btn-icon" id="btn-header-logout" title="Cerrar Sesión">🚪</button>
+    </div>
+  </header>
+
+  <!-- Navegación Desktop (Pestañas Superiores) -->
+  <nav class="desktop-nav">
+    <button class="nav-tab-btn active" data-view="sabana">📅 Sábana de Turnos</button>
+    <button class="nav-tab-btn" data-view="novedades">📑 Novedades</button>
+    <button class="nav-tab-btn" data-view="personal">👥 Personal</button>
+    <button class="nav-tab-btn" data-view="licencias">🏖️ Licencias Anuales</button>
+  </nav>
+
+  <!-- Contenedor Principal de Vistas -->
+  <main class="main-content">
+    <section class="view-section active" id="view-sabana">
+      <!-- Sábana Tab -->
+    </section>
+
+    <section class="view-section" id="view-novedades">
+      <!-- Novedades Tab -->
+    </section>
+
+    <section class="view-section" id="view-personal">
+      <!-- Personal Tab -->
+    </section>
+
+    <section class="view-section" id="view-licencias">
+      <!-- Licencias Tab -->
+    </section>
+  </main>
+
+  <!-- Barra de Navegación Inferior Móvil (Bottom Navigation Bar) -->
+  <nav class="bottom-nav">
+    <button class="bottom-nav-item active" data-view="sabana">
+      <span class="icon">📅</span>
+      <span>Sábana</span>
+    </button>
+    <button class="bottom-nav-item" data-view="novedades">
+      <span class="icon">📑</span>
+      <span>Novedades</span>
+    </button>
+    <button class="bottom-nav-item" data-view="personal">
+      <span class="icon">👥</span>
+      <span>Personal</span>
+    </button>
+    <button class="bottom-nav-item" data-view="licencias">
+      <span class="icon">🏖️</span>
+      <span>Licencias</span>
+    </button>
+  </nav>
+
+  <!-- Pantalla de Login -->
+  <div class="login-screen" id="login-screen" style="display: none;">
+    <div class="login-card">
+      <div class="login-brand">
+        <img src="icons/crono_icon.svg" alt="CRONO">
+        <h2>CRONO-PCT</h2>
+        <p>Versión Web Progresiva conectada a Supabase</p>
+      </div>
+
+      <div id="login-error-msg" style="display: none; background-color: var(--danger-light); color: var(--danger); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; margin-bottom: 12px;"></div>
+
+      <form id="login-form">
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label for="login-username">Usuario:</label>
+          <input type="text" id="login-username" required autocomplete="username" placeholder="admin, supervisor...">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="login-password">Contraseña / PIN:</label>
+          <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••">
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="btn-login-submit" style="width: 100%; min-height: 42px;">
+          Ingresar a CRONO
+        </button>
+      </form>
+
+      <div style="margin-top: 16px; text-align: center;">
+        <button class="btn btn-secondary btn-pill" id="btn-login-config" style="font-size: 11px;">
+          ⚙️ Configurar Supabase URL / Key
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Configuración Supabase -->
+  <div class="modal-overlay" id="modal-config-supabase">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Configuración de Conexión a Supabase</h3>
+        <button class="btn-icon" id="btn-cerrar-config-supabase">✖</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>URL del Proyecto Supabase:</label>
+          <input type="text" id="cfg-supabase-url" placeholder="https://xxxxxxxxxxxx.supabase.co">
+        </div>
+        <div class="form-group">
+          <label>Anon Public Key:</label>
+          <input type="password" id="cfg-supabase-anon-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+        </div>
+        <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+          Estos valores se guardan en el almacenamiento local seguro de tu navegador (localStorage).
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-cancelar-config-supabase">Cancelar</button>
+        <button class="btn btn-primary" id="btn-guardar-config-supabase">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inicialización Principal -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
