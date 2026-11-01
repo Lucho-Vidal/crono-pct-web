@@ -5,7 +5,8 @@ import {
   getSession, 
   clearSession, 
   getConfig, 
-  saveConfig 
+  saveConfig,
+  getLoginLockoutState
 } from './supabase.js';
 
 import { SabanaView } from './views/sabana.js';
@@ -126,10 +127,71 @@ class AppController {
     const inpPass = document.getElementById('login-password');
     const btnLogin = document.getElementById('btn-login-submit');
     const errBox = document.getElementById('login-error-msg');
+    const lockoutBox = document.getElementById('login-lockout-box');
+    const lockoutTimer = document.getElementById('login-lockout-timer');
+
+    let intervaloLockout = null;
+
+    const actualizarEstadoBloqueo = () => {
+      const state = getLoginLockoutState();
+      if (state.bloqueadoHasta && state.bloqueadoHasta > Date.now()) {
+        const segs = Math.ceil((state.bloqueadoHasta - Date.now()) / 1000);
+        if (lockoutBox) lockoutBox.style.display = 'block';
+        if (lockoutTimer) lockoutTimer.textContent = segs;
+        if (inpUser) inpUser.disabled = true;
+        if (inpPass) inpPass.disabled = true;
+        if (btnLogin) {
+          btnLogin.disabled = true;
+          btnLogin.textContent = `Bloqueado (${segs}s)`;
+        }
+
+        if (!intervaloLockout) {
+          intervaloLockout = setInterval(() => {
+            const actual = getLoginLockoutState();
+            if (actual.bloqueadoHasta && actual.bloqueadoHasta > Date.now()) {
+              const r = Math.ceil((actual.bloqueadoHasta - Date.now()) / 1000);
+              if (lockoutTimer) lockoutTimer.textContent = r;
+              if (btnLogin) btnLogin.textContent = `Bloqueado (${r}s)`;
+            } else {
+              clearInterval(intervaloLockout);
+              intervaloLockout = null;
+              if (lockoutBox) lockoutBox.style.display = 'none';
+              if (inpUser) inpUser.disabled = false;
+              if (inpPass) inpPass.disabled = false;
+              if (btnLogin) {
+                btnLogin.disabled = false;
+                btnLogin.textContent = 'Ingresar a CRONO';
+              }
+            }
+          }, 1000);
+        }
+        return true;
+      } else {
+        if (intervaloLockout) {
+          clearInterval(intervaloLockout);
+          intervaloLockout = null;
+        }
+        if (lockoutBox) lockoutBox.style.display = 'none';
+        if (inpUser) inpUser.disabled = false;
+        if (inpPass) inpPass.disabled = false;
+        if (btnLogin) {
+          btnLogin.disabled = false;
+          btnLogin.textContent = 'Ingresar a CRONO';
+        }
+        return false;
+      }
+    };
+
+    // Chequear al iniciar
+    actualizarEstadoBloqueo();
 
     if (form) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (actualizarEstadoBloqueo()) {
+          return;
+        }
+
         errBox.style.display = 'none';
         btnLogin.disabled = true;
         btnLogin.textContent = 'Verificando...';
@@ -141,9 +203,12 @@ class AppController {
         } catch (err) {
           errBox.textContent = err.message || "Error al iniciar sesión.";
           errBox.style.display = 'block';
+          actualizarEstadoBloqueo();
         } finally {
-          btnLogin.disabled = false;
-          btnLogin.textContent = 'Ingresar a CRONO';
+          if (!actualizarEstadoBloqueo()) {
+            btnLogin.disabled = false;
+            btnLogin.textContent = 'Ingresar a CRONO';
+          }
         }
       });
     }
@@ -171,6 +236,14 @@ class AppController {
     const inpKey = document.getElementById('cfg-supabase-anon-key');
 
     const abrir = () => {
+      // Bloqueo estricto: solo administradores
+      const session = getSession();
+      const esAdmin = session && (session.rol === 'ADMIN' || this.store.esAdmin());
+      if (!esAdmin && session) {
+        alert("Acceso Restringido: La configuración de conexión a Supabase es exclusiva para Administradores.");
+        return;
+      }
+
       const cfg = getConfig();
       inpUrl.value = cfg.supabase_url;
       inpKey.value = cfg.supabase_anon_key;
@@ -186,6 +259,13 @@ class AppController {
 
     if (btnGuardar) {
       btnGuardar.addEventListener('click', () => {
+        const session = getSession();
+        const esAdmin = session && (session.rol === 'ADMIN' || this.store.esAdmin());
+        if (!esAdmin && session) {
+          alert("Operación denegada: Sólo un Administrador puede modificar los parámetros de conexión.");
+          return;
+        }
+
         saveConfig(inpUrl.value, inpKey.value);
         cerrar();
         alert("Configuración de Supabase guardada. La página se reiniciará para aplicar las nuevas credenciales.");
@@ -241,8 +321,15 @@ class AppController {
   actualizarHeaderUsuario(user) {
     const lblNom = document.getElementById('header-user-name');
     const lblRol = document.getElementById('header-user-role');
+    const btnCfg = document.getElementById('btn-header-config');
     if (lblNom) lblNom.textContent = user.nombre_completo || user.username;
     if (lblRol) lblRol.textContent = user.rol;
+
+    // Solo mostrar el botón de configuración si es Administrador
+    if (btnCfg) {
+      const esAdmin = (user.rol === 'ADMIN' || this.store.esAdmin());
+      btnCfg.style.display = esAdmin ? 'inline-flex' : 'none';
+    }
   }
 
   attachNavigationEvents() {

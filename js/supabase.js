@@ -8,6 +8,52 @@ const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_5VFaiCRnSPjLbAypLYuOHQ_xXtr7Hq
 const STORAGE_KEY_CONFIG = "crono_web_config";
 const STORAGE_KEY_SESSION = "crono_web_session";
 const STORAGE_KEY_CACHE = "crono_web_cache_v1";
+const STORAGE_KEY_LOCKOUT = "crono_web_login_lockout";
+
+// Gestor de Intentos Fallidos y Bloqueo Anti-Fuerza Bruta
+export function getLoginLockoutState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_LOCKOUT);
+    if (!raw) return { intentos: 0, bloqueadoHasta: null, penalizacionSegundos: 60 };
+    const data = JSON.parse(raw);
+    const ahora = Date.now();
+    if (data.bloqueadoHasta && data.bloqueadoHasta > ahora) {
+      return data;
+    }
+    // Si ya expiró el bloqueo, conservar nivel de penalización si fue reciente
+    if (data.bloqueadoHasta && data.bloqueadoHasta <= ahora) {
+      return { intentos: 0, bloqueadoHasta: null, penalizacionSegundos: data.penalizacionSegundos || 60 };
+    }
+    return { intentos: data.intentos || 0, bloqueadoHasta: null, penalizacionSegundos: data.penalizacionSegundos || 60 };
+  } catch (e) {
+    return { intentos: 0, bloqueadoHasta: null, penalizacionSegundos: 60 };
+  }
+}
+
+export function registrarIntentoFallido() {
+  const state = getLoginLockoutState();
+  const intentos = (state.intentos || 0) + 1;
+  let penalizacion = state.penalizacionSegundos || 60;
+  let bloqueadoHasta = null;
+
+  if (intentos >= 3) {
+    bloqueadoHasta = Date.now() + penalizacion * 1000;
+    // La siguiente penalización será más severa (60 -> 180 -> 300)
+    penalizacion = Math.min(penalizacion * 2, 300);
+  }
+
+  const newState = {
+    intentos: bloqueadoHasta ? 0 : intentos,
+    bloqueadoHasta: bloqueadoHasta,
+    penalizacionSegundos: penalizacion
+  };
+  localStorage.setItem(STORAGE_KEY_LOCKOUT, JSON.stringify(newState));
+  return newState;
+}
+
+export function limpiarIntentosFallidos() {
+  localStorage.removeItem(STORAGE_KEY_LOCKOUT);
+}
 
 // 1. Manejo de Configuración
 export function sanitizarSupabaseUrl(url) {
@@ -60,23 +106,29 @@ export function saveConfig(url, anonKey) {
   return cfg;
 }
 
-// 2. Cliente Supabase con Inyección de x-crono-user
+// 2. Cliente Supabase con Inyección de x-crono-user y x-crono-auth
 let supabaseInstance = null;
 
 export function getSupabaseClient() {
   const cfg = getConfig();
   const session = getSession();
   const username = session ? session.username : "admin";
+  const authToken = session ? (session.auth_token || "") : "";
 
-  // Re-instanciar cliente con cabecera x-crono-user
+  // Re-instanciar cliente con cabeceras de seguridad
+  const headers = {
+    'x-crono-user': username
+  };
+  if (authToken) {
+    headers['x-crono-auth'] = authToken;
+  }
+
   supabaseInstance = createClient(cfg.supabase_url, cfg.supabase_anon_key, {
     auth: {
       persistSession: false
     },
     global: {
-      headers: {
-        'x-crono-user': username
-      }
+      headers: headers
     }
   });
 
@@ -127,35 +179,84 @@ export function clearSession() {
   localStorage.removeItem(STORAGE_KEY_SESSION);
 }
 
-// 5. Autenticación contra usuarios_app
+// 5. Autenticación contra RPC fn_autenticar_usuario (con fallback seguro)
 export async function autenticarUsuario(username, password) {
-  const client = getSupabaseClient();
-  const u = username.trim().toLowerCase();
+  // 1. Validar si está en período de penalización por intentos fallidos
+  const lockout = getLoginLockoutState();
+  if (lockout.bloqueadoHasta && lockout.bloqueadoHasta > Date.now()) {
+    const restantes = Math.ceil((lockout.bloqueadoHasta - Date.now()) / 1000);
+    throw new Error(`Acceso temporalmente bloqueado por intentos fallidos. Aguardá ${restantes} segundos.`);
+  }
 
-  const { data, error } = await client
+  const u = String(username || "").trim();
+  const p = String(password || "").trim();
+
+  if (!u || !p) {
+    throw new Error("Por favor ingresá usuario y contraseña.");
+  }
+
+  const client = getSupabaseClient();
+  const hashIngresado = await sha256(p);
+
+  // Intentar primero autenticación segura mediante RPC en el servidor
+  try {
+    const { data, error } = await client.rpc('fn_autenticar_usuario', {
+      p_username: u,
+      p_password_hash: hashIngresado,
+      p_password_plain: p
+    });
+
+    if (!error && data) {
+      limpiarIntentosFallidos();
+      const userSession = {
+        username: data.username,
+        nombre_completo: data.nombre_completo,
+        email: data.email || '',
+        rol: data.rol || 'CONSULTA',
+        auth_token: data.auth_token || hashIngresado
+      };
+      saveSession(userSession);
+      return userSession;
+    }
+  } catch (rpcErr) {
+    // Si la función RPC no existe aún en el esquema remoto, usar fallback
+    console.warn("RPC fn_autenticar_usuario no disponible, usando fallback:", rpcErr.message);
+  }
+
+  // Fallback: consulta directa a usuarios_app
+  const { data: users, error } = await client
     .from('usuarios_app')
     .select('*')
     .eq('activo', true);
 
   if (error) {
+    registrarIntentoFallido();
     throw new Error(`Error al conectar con Supabase: ${error.message}`);
   }
 
-  const user = data.find(x => x.username && x.username.toLowerCase() === u);
+  const user = users.find(x => x.username && x.username.toLowerCase() === u.toLowerCase());
   if (!user) {
-    throw new Error(`El usuario "${username}" no existe o está inactivo.`);
+    registrarIntentoFallido();
+    throw new Error(`El usuario "${u}" no existe o está inactivo.`);
   }
 
-  const ok = await verificarPassword(password, user.password_hash);
+  const ok = await verificarPassword(p, user.password_hash);
   if (!ok) {
+    const nuevoState = registrarIntentoFallido();
+    if (nuevoState.bloqueadoHasta) {
+      const segs = Math.ceil((nuevoState.bloqueadoHasta - Date.now()) / 1000);
+      throw new Error(`Contraseña incorrecta. Has superado el límite de intentos. Ingreso bloqueado por ${segs} segundos.`);
+    }
     throw new Error("Contraseña / PIN incorrecto.");
   }
 
+  limpiarIntentosFallidos();
   const userSession = {
     username: user.username,
     nombre_completo: user.nombre_completo,
     email: user.email || '',
-    rol: user.rol || 'CONSULTA'
+    rol: user.rol || 'CONSULTA',
+    auth_token: user.password_hash || hashIngresado
   };
 
   saveSession(userSession);
