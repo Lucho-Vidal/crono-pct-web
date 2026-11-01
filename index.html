@@ -108,6 +108,23 @@
 
       <div id="login-error-msg" style="display: none; background-color: var(--danger-light); color: var(--danger); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; margin-bottom: 12px;"></div>
 
+      <!-- Pantalla de Ingreso Biométrico Rápido (WebAuthn / Huella) -->
+      <div id="biometric-login-box" style="display: none; text-align: center; padding: 12px 4px 16px 4px;">
+        <div style="font-size: 48px; margin-bottom: 8px; cursor: pointer; user-select: none;" id="btn-biometric-icon">👆</div>
+        <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text);">Dispositivo de Confianza</h3>
+        <p style="margin: 4px 0 16px 0; font-size: 12px; color: var(--text-muted);" id="biometric-user-label">
+          Ingresá con tu huella digital o rostro
+        </p>
+        
+        <button type="button" class="btn btn-primary" id="btn-biometric-submit" style="width: 100%; min-height: 42px; margin-bottom: 10px; font-weight: 600;">
+          👆 Usar Huella / Biometría
+        </button>
+
+        <button type="button" class="btn btn-secondary" id="btn-biometric-fallback" style="width: 100%; min-height: 38px; font-size: 12px;">
+          🔑 Ingresar con contraseña / PIN
+        </button>
+      </div>
+
       <form id="login-form">
         <div class="form-group" style="margin-bottom: 12px;">
           <label for="login-username">Usuario:</label>

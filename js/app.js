@@ -3,12 +3,21 @@ import {
   WebDataStore, 
   autenticarUsuario, 
   verificarTotpUsuario,
+  verificarDispositivoConfiable,
+  registrarDispositivoConfiable,
+  autenticarPorDispositivoBiometrico,
   getSession, 
   clearSession, 
   getConfig, 
   saveConfig,
   getLoginLockoutState
 } from './supabase.js';
+
+import {
+  isBiometricsAvailable,
+  registrarCredencialBiometrica,
+  verificarCredencialBiometrica
+} from './webauthn.js';
 
 import { SabanaView } from './views/sabana.js';
 import { NovedadesView } from './views/novedades.js';
@@ -186,6 +195,81 @@ class AppController {
     // Chequear al iniciar
     actualizarEstadoBloqueo();
 
+    // Elementos de Biometría (WebAuthn)
+    const bioBox = document.getElementById('biometric-login-box');
+    const bioUserLabel = document.getElementById('biometric-user-label');
+    const btnBioSubmit = document.getElementById('btn-biometric-submit');
+    const btnBioIcon = document.getElementById('btn-biometric-icon');
+    const btnBioFallback = document.getElementById('btn-biometric-fallback');
+
+    // Comprobar si hay un usuario biométrico recordado en este dispositivo
+    const verificarBiometriaGuardada = async () => {
+      try {
+        const tieneHardware = await isBiometricsAvailable();
+        const bioDataRaw = localStorage.getItem('crono_biometric_device_user');
+        if (tieneHardware && bioDataRaw && bioBox && form) {
+          const bioData = JSON.parse(bioDataRaw);
+          if (bioData && bioData.username) {
+            bioUserLabel.textContent = `Hola ${bioData.nombre || bioData.username}, tocá el sensor para ingresar`;
+            form.style.display = 'none';
+            bioBox.style.display = 'block';
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn("Fallo verificando biometría recordada:", e);
+      }
+      return false;
+    };
+
+    verificarBiometriaGuardada();
+
+    const ejecutarLoginBiometrico = async () => {
+      errBox.style.display = 'none';
+      btnBioSubmit.disabled = true;
+      btnBioSubmit.textContent = '👆 Verificando sensor...';
+
+      try {
+        const bioDataRaw = localStorage.getItem('crono_biometric_device_user');
+        const bioData = bioDataRaw ? JSON.parse(bioDataRaw) : null;
+        if (!bioData || !bioData.username) {
+          throw new Error("No hay credencial biométrica registrada.");
+        }
+
+        // 1. Invocar WebAuthn nativo del navegador
+        await verificarCredencialBiometrica(bioData.credentialId);
+
+        // 2. Autenticar contra RPC de Supabase para este dispositivo de confianza
+        const res = await autenticarPorDispositivoBiometrico(bioData.username);
+        this.ocultarPantallaLogin();
+        bioBox.style.display = 'none';
+        form.style.display = 'block';
+        await this.iniciarSistema(res);
+      } catch (err) {
+        console.warn("Autenticación biométrica no completada:", err);
+        errBox.textContent = err.message || "Validación biométrica cancelada o no reconocida.";
+        errBox.style.display = 'block';
+        // Fallback automático inmediato a formulario de contraseña
+        bioBox.style.display = 'none';
+        form.style.display = 'block';
+      } finally {
+        btnBioSubmit.disabled = false;
+        btnBioSubmit.textContent = '👆 Usar Huella / Biometría';
+      }
+    };
+
+    if (btnBioSubmit) btnBioSubmit.addEventListener('click', ejecutarLoginBiometrico);
+    if (btnBioIcon) btnBioIcon.addEventListener('click', ejecutarLoginBiometrico);
+
+    // Fallback explícito: si el usuario prefiere poner contraseña
+    if (btnBioFallback) {
+      btnBioFallback.addEventListener('click', () => {
+        errBox.style.display = 'none';
+        if (bioBox) bioBox.style.display = 'none';
+        if (form) form.style.display = 'block';
+      });
+    }
+
     if (form) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -215,6 +299,7 @@ class AppController {
 
           this.ocultarPantallaLogin();
           await this.iniciarSistema(res);
+          this.consultarActivacionBiometrica(res);
         } catch (err) {
           errBox.textContent = err.message || "Error al iniciar sesión.";
           errBox.style.display = 'block';
@@ -252,6 +337,7 @@ class AppController {
           totpForm.style.display = 'none';
           form.style.display = 'block';
           await this.iniciarSistema(user);
+          this.consultarActivacionBiometrica(user);
         } catch (err) {
           errBox.textContent = err.message || "Código TOTP inválido.";
           errBox.style.display = 'block';
@@ -277,6 +363,42 @@ class AppController {
           await this.ejecutarLogout(false);
         }
       });
+    }
+  }
+
+  async consultarActivacionBiometrica(user) {
+    try {
+      const tieneHardware = await isBiometricsAvailable();
+      if (!tieneHardware) return; // Dispositivo sin lector de huella/FaceID (ej. PC clásica)
+
+      const yaConfigurado = localStorage.getItem('crono_biometric_device_user');
+      if (yaConfigurado) return; // Ya está configurado en este navegador
+
+      const nombre = user.nombre_completo || user.username || "Usuario";
+      const confirmar = confirm(`¿Deseás habilitar el inicio de sesión con Huella Digital o Biometría en este dispositivo para futuras sesiones?`);
+      if (!confirmar) return;
+
+      const cred = await registrarCredencialBiometrica(user.username);
+      if (cred && cred.id) {
+        // Registrar en Supabase
+        await registrarDispositivoConfiable(
+          user.username,
+          "Dispositivo Biométrico (" + (navigator.userAgent.includes('Mobile') ? 'Móvil' : 'PC') + ")",
+          cred.id,
+          cred.rawId
+        );
+
+        // Guardar credencial local para futuros inicios sin contraseña
+        localStorage.setItem('crono_biometric_device_user', JSON.stringify({
+          username: user.username,
+          nombre: nombre,
+          credentialId: cred.id
+        }));
+
+        alert("¡Biometría configurada con éxito! La próxima vez podrás ingresar tocando el sensor.");
+      }
+    } catch (e) {
+      console.warn("Activación biométrica no completada o cancelada:", e);
     }
   }
 

@@ -373,6 +373,82 @@ export async function verificarTotpUsuario(username, codigoTotp, confiarDisposit
   throw new Error("Respuesta inválida del servidor al verificar TOTP.");
 }
 
+// 5.2 Dispositivos de Confianza y Autenticación Biométrica (WebAuthn)
+export async function verificarDispositivoConfiable(username) {
+  const u = String(username || "").trim();
+  const deviceId = getDeviceFingerprint();
+  if (!u || !deviceId) return false;
+
+  try {
+    const client = getSupabaseClient();
+    const { data, error } = await client.rpc('fn_verificar_dispositivo_confiable', {
+      p_username: u,
+      p_device_id: deviceId
+    });
+    if (error) return false;
+    return Boolean(data);
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function registrarDispositivoConfiable(username, deviceName = "Navegador Web", credentialId = null, publicKey = null) {
+  const u = String(username || "").trim();
+  const deviceId = getDeviceFingerprint();
+  if (!u || !deviceId) return false;
+
+  try {
+    const client = getSupabaseClient();
+    const { data, error } = await client.rpc('fn_registrar_dispositivo_confiable', {
+      p_username: u,
+      p_device_id: deviceId,
+      p_device_name: String(deviceName || "Navegador Web"),
+      p_credential_id: credentialId,
+      p_public_key: publicKey
+    });
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.warn("No se pudo registrar dispositivo de confianza en Supabase:", e);
+    return false;
+  }
+}
+
+export async function autenticarPorDispositivoBiometrico(username) {
+  const u = String(username || "").trim();
+  const deviceId = getDeviceFingerprint();
+
+  if (!u || !deviceId) {
+    throw new Error("Faltan parámetros para autenticación biométrica.");
+  }
+
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc('fn_autenticar_dispositivo_biometrico', {
+    p_username: u,
+    p_device_id: deviceId
+  });
+
+  if (error) {
+    throw new Error(error.message || "Error al autenticar dispositivo biométrico.");
+  }
+
+  if (data && data.username) {
+    limpiarIntentosFallidos();
+    const userSession = {
+      username: data.username,
+      nombre_completo: data.nombre_completo,
+      email: data.email || '',
+      rol: data.rol || 'CONSULTA',
+      session_token: data.session_token || data.auth_token || '',
+      token_expira: data.token_expira || null
+    };
+    saveSession(userSession);
+    return userSession;
+  }
+
+  throw new Error("Respuesta inválida de autenticación biométrica.");
+}
+
 // 6. DataStore en Memoria + Caché Offline en LocalStorage
 export class WebDataStore {
   constructor() {
