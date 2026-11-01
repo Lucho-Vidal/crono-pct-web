@@ -278,6 +278,13 @@ textarea {
   color: var(--text-main);
   outline: none;
   min-height: 38px;
+  max-width: 100%;
+}
+
+select {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 input:focus,
@@ -432,6 +439,61 @@ table.data-table thead th {
   min-width: 150px;
   max-width: 220px;
   box-shadow: 2px 0 5px rgba(0, 0, 0, 0.06);
+}
+
+.agente-nom-sub {
+  display: none;
+}
+
+.agente-nom-completo {
+  display: inline;
+}
+
+@media (max-width: 768px) {
+  .sticky-col-1 {
+    width: 52px;
+    min-width: 52px;
+    max-width: 52px;
+    padding: 6px 2px !important;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .sticky-col-2 {
+    left: 52px;
+    width: 98px;
+    min-width: 98px;
+    max-width: 104px;
+    padding: 6px 4px !important;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .agente-nom-completo {
+    display: none;
+  }
+
+  .agente-nom-sub {
+    display: inline;
+  }
+
+  .celda-sabana {
+    min-width: 32px !important;
+    max-width: 35px !important;
+    font-size: 11px !important;
+    padding: 4px 1px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .col-dia-nombre,
+  .col-dia-numero {
+    min-width: 32px !important;
+    padding: 4px 1px !important;
+    font-size: 10px !important;
+  }
 }
 
 thead th.sticky-col-1,

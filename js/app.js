@@ -34,6 +34,7 @@ class AppController {
     this.attachNetworkStatus();
     this.attachLoginEvents();
     this.attachConfigEvents();
+    this.attachModalBackdropEvents();
 
     const session = getSession();
     if (!session) {
@@ -41,6 +42,15 @@ class AppController {
     } else {
       await this.iniciarSistema(session);
     }
+  }
+
+  attachModalBackdropEvents() {
+    // Cerrar cualquier modal al hacer clic en el fondo exterior oscuro (backdrop)
+    document.addEventListener('click', (e) => {
+      if (e.target.classList && e.target.classList.contains('modal-overlay') && e.target.classList.contains('active')) {
+        e.target.classList.remove('active');
+      }
+    });
   }
 
   registerServiceWorker() {

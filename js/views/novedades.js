@@ -129,28 +129,26 @@ export class NovedadesView {
             </div>
 
             <!-- Sección Turno SAP Temporal -->
-            <div style="background-color: #f1f5f9; padding: 10px; border-radius: 6px; border: 1px solid var(--border-light); margin-top: 6px;">
+            <div style="background-color: #f1f5f9; padding: 12px; border-radius: 6px; border: 1px solid var(--border-light); margin-top: 6px;">
               <label style="font-weight: 700; font-size: 12px; color: #334155;">🔄 Cobertura Temporal por Turno SAP (Opcional):</label>
-              <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Proyecta automáticamente el horario y los francos de este turno durante el período.</p>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Turno SAP Temporal:</label>
-                  <select id="nov-form-sap-temporal">
-                    <option value="">-- Ninguno (Turno habitual) --</option>
-                    ${Array.from(this.store.turnos.values()).map(t => `
-                      <option value="${t.codigo_sap}">[${t.codigo_sap}] ${t.descripcion || t.etiqueta_corta}</option>
-                    `).join('')}
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Legajo Reemplazado:</label>
-                  <select id="nov-form-legajo-reemplazado">
-                    <option value="">-- Ninguno --</option>
-                    ${this.store.personal.filter(p => p.activo !== false).map(p => `
-                      <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre}</option>
-                    `).join('')}
-                  </select>
-                </div>
+              <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Proyecta automáticamente el horario y los francos de este turno durante el período.</p>
+              <div class="form-group" style="margin-bottom: 8px;">
+                <label>Turno SAP Temporal:</label>
+                <select id="nov-form-sap-temporal" style="width: 100%;">
+                  <option value="">-- Ninguno (Turno habitual) --</option>
+                  ${Array.from(this.store.turnos.values()).map(t => `
+                    <option value="${t.codigo_sap}">[${t.codigo_sap}] ${t.descripcion || t.etiqueta_corta}</option>
+                  `).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Legajo Reemplazado:</label>
+                <select id="nov-form-legajo-reemplazado" style="width: 100%;">
+                  <option value="">-- Ninguno --</option>
+                  ${this.store.personal.filter(p => p.activo !== false).map(p => `
+                    <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre}</option>
+                  `).join('')}
+                </select>
               </div>
             </div>
 
@@ -427,6 +425,20 @@ export class NovedadesView {
     const selSapTemp = this.container.querySelector("#nov-form-sap-temporal");
     const selLegReemp = this.container.querySelector("#nov-form-legajo-reemplazado");
     const txtObs = this.container.querySelector("#nov-form-obs");
+
+    // Repoblar agentes y turnos actualizados
+    const agentesActivos = this.store.personal.filter(p => p.activo !== false);
+    selLeg.innerHTML = '<option value="">-- Seleccionar Agente --</option>' + agentesActivos.map(p => `
+      <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre} (${p.sector_actual || ''})</option>
+    `).join('');
+
+    selSapTemp.innerHTML = '<option value="">-- Ninguno (Turno habitual) --</option>' + Array.from(this.store.turnos.values()).map(t => `
+      <option value="${t.codigo_sap}">[${t.codigo_sap}] ${t.descripcion || t.etiqueta_corta}</option>
+    `).join('');
+
+    selLegReemp.innerHTML = '<option value="">-- Ninguno --</option>' + agentesActivos.map(p => `
+      <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre}</option>
+    `).join('');
 
     if (novedad) {
       titulo.textContent = `Editar Novedad #${novedad.id}`;

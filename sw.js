@@ -46,6 +46,17 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
+  // Manejo de sonda de inspección Chrome DevTools
+  if (url.pathname.includes('com.chrome.devtools.json')) {
+    event.respondWith(
+      new Response('{}', {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200
+      })
+    );
+    return;
+  }
+
   // Solicitudes a Supabase o CDN externo:
   if (url.origin.includes('supabase.co') || url.origin.includes('jsdelivr.net')) {
     // Intentar red primero; si falla, responder con error controlado o dejar que el cliente use su cache local

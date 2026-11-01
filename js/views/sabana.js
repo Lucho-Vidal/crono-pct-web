@@ -76,11 +76,16 @@ export class SabanaView {
           <div class="modal-body">
             <div class="form-group">
               <label>Sectores:</label>
-              <div id="filtro-sectores-checks" style="max-height: 120px; overflow-y: auto; border: 1px solid var(--border-light); padding: 8px; border-radius: 6px;"></div>
+              <div id="filtro-sectores-checks" style="max-height: 110px; overflow-y: auto; border: 1px solid var(--border-light); padding: 8px; border-radius: 6px;"></div>
             </div>
             <div class="form-group">
-              <label>Grupos / Turnos SAP:</label>
-              <div id="filtro-grupos-checks" style="max-height: 120px; overflow-y: auto; border: 1px solid var(--border-light); padding: 8px; border-radius: 6px;"></div>
+              <label>Grupos / Turnos SAP (Asignados):</label>
+              <div id="filtro-grupos-checks" style="max-height: 110px; overflow-y: auto; border: 1px solid var(--border-light); padding: 8px; border-radius: 6px;"></div>
+            </div>
+            <div class="form-group">
+              <label>Personal / Agentes:</label>
+              <input type="text" id="filtro-personal-buscar" placeholder="🔍 Filtrar agente..." style="width: 100%; margin-bottom: 6px; font-size: 12px; min-height: 32px;">
+              <div id="filtro-personal-checks" style="max-height: 130px; overflow-y: auto; border: 1px solid var(--border-light); padding: 8px; border-radius: 6px;"></div>
             </div>
           </div>
           <div class="modal-footer">
@@ -93,7 +98,7 @@ export class SabanaView {
   }
 
   contarFiltrosActivos() {
-    return this.filtroSectores.length + this.filtroGrupos.length;
+    return this.filtroSectores.length + this.filtroGrupos.length + this.filtroPersonal.length;
   }
 
   renderLeyenda() {
@@ -201,6 +206,11 @@ export class SabanaView {
       agentes = agentes.filter(p => this.filtroGrupos.includes(p.grupo_sap_actual));
     }
 
+    // Filtro de Personal específico
+    if (this.filtroPersonal.length > 0) {
+      agentes = agentes.filter(p => this.filtroPersonal.includes(String(p.legajo).trim()));
+    }
+
     return agentes;
   }
 
@@ -238,8 +248,8 @@ export class SabanaView {
         html += `
           <tr>
             <td class="sticky-col-1" style="font-weight: 700;">${leg}</td>
-            <td class="sticky-col-2" title="${ag.sector_actual || ''} - ${ag.grupo_sap_actual || ''}">
-              <b>${ag.apellido}</b>, ${ag.nombre}
+            <td class="sticky-col-2" title="${ag.apellido}, ${ag.nombre} (${ag.sector_actual || ''} - ${ag.grupo_sap_actual || ''})">
+              <b>${ag.apellido}</b>, <span class="agente-nom-completo">${ag.nombre}</span><span class="agente-nom-sub">${ag.nombre ? ag.nombre[0] + '.' : ''}</span>
             </td>
             ${dias.map(d => {
               const celda = calcularCelda(leg, d.iso, this.store);
@@ -340,6 +350,7 @@ export class SabanaView {
       btnLimpiarFiltros.addEventListener("click", () => {
         this.filtroSectores = [];
         this.filtroGrupos = [];
+        this.filtroPersonal = [];
         btnFiltroAdv.textContent = `⚙️ Filtros (0)`;
         modalFiltro.classList.remove("active");
         this.renderTabla();
@@ -347,8 +358,10 @@ export class SabanaView {
       btnAplicarFiltros.addEventListener("click", () => {
         const secChecks = modalFiltro.querySelectorAll("input[name='filtro-sec']:checked");
         const grpChecks = modalFiltro.querySelectorAll("input[name='filtro-grp']:checked");
+        const persChecks = modalFiltro.querySelectorAll("input[name='filtro-pers']:checked");
         this.filtroSectores = Array.from(secChecks).map(c => c.value);
         this.filtroGrupos = Array.from(grpChecks).map(c => c.value);
+        this.filtroPersonal = Array.from(persChecks).map(c => c.value);
         btnFiltroAdv.textContent = `⚙️ Filtros (${this.contarFiltrosActivos()})`;
         modalFiltro.classList.remove("active");
         this.renderTabla();
@@ -359,6 +372,8 @@ export class SabanaView {
   poblarChecksFiltroAvanzado() {
     const secCont = this.container.querySelector("#filtro-sectores-checks");
     const grpCont = this.container.querySelector("#filtro-grupos-checks");
+    const persCont = this.container.querySelector("#filtro-personal-checks");
+    const inpBusPers = this.container.querySelector("#filtro-personal-buscar");
     if (!secCont || !grpCont) return;
 
     secCont.innerHTML = this.store.sectores.map(s => `
@@ -368,13 +383,48 @@ export class SabanaView {
       </label>
     `).join('');
 
-    const turnosArr = Array.from(this.store.turnos.values());
-    grpCont.innerHTML = turnosArr.map(t => `
+    // Mostrar sólo los turnos SAP que tengan al menos un personal asignado
+    const turnosAsignados = new Set(
+      this.store.personal
+        .filter(p => p.activo !== false && p.grupo_sap_actual)
+        .map(p => p.grupo_sap_actual.trim().toUpperCase())
+    );
+
+    const turnosFiltrados = Array.from(this.store.turnos.values())
+      .filter(t => turnosAsignados.has(t.codigo_sap.trim().toUpperCase()))
+      .sort((a, b) => a.codigo_sap.localeCompare(b.codigo_sap));
+
+    grpCont.innerHTML = turnosFiltrados.length > 0 ? turnosFiltrados.map(t => `
       <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 4px;">
         <input type="checkbox" name="filtro-grp" value="${t.codigo_sap}" ${this.filtroGrupos.includes(t.codigo_sap) ? 'checked' : ''}>
         <b>${t.codigo_sap}</b> (${t.etiqueta_corta})
       </label>
-    `).join('');
+    `).join('') : '<div style="color: var(--text-muted); font-size: 12px;">No hay turnos con personal asignado</div>';
+
+    // Poblar personal con buscador interactivo
+    if (persCont) {
+      const renderPersonalChecks = (filtro = "") => {
+        const q = filtro.toLowerCase().trim();
+        const agentes = this.store.personal
+          .filter(p => p.activo !== false)
+          .filter(p => !q || String(p.legajo).includes(q) || p.apellido.toLowerCase().includes(q) || p.nombre.toLowerCase().includes(q))
+          .sort((a, b) => a.apellido.localeCompare(b.apellido));
+
+        persCont.innerHTML = agentes.map(p => `
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 4px;">
+            <input type="checkbox" name="filtro-pers" value="${p.legajo}" ${this.filtroPersonal.includes(String(p.legajo).trim()) ? 'checked' : ''}>
+            [${p.legajo}] <b>${p.apellido}</b>, ${p.nombre}
+          </label>
+        `).join('') || '<div style="color: var(--text-muted); font-size: 12px;">Sin coincidencias</div>';
+      };
+
+      renderPersonalChecks();
+
+      if (inpBusPers) {
+        inpBusPers.value = "";
+        inpBusPers.oninput = (e) => renderPersonalChecks(e.target.value);
+      }
+    }
   }
 
   irAHoy() {

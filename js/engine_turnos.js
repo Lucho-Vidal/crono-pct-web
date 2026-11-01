@@ -119,6 +119,16 @@ export function obtenerColorMotivo(motivo, tipoColor, colorHex, store) {
   return "#e2e8f0";
 }
 
+export function normalizarTextoTurno(texto) {
+  if (!texto) return "";
+  const t = String(texto).trim();
+  const lower = t.toLowerCase();
+  if (lower === "flex" || lower.includes("flex")) return "FL";
+  if (lower === "licencia anual") return "LA";
+  if (lower === "franco") return "F";
+  return t;
+}
+
 // Cálculo maestro de celda de Sábana
 export function calcularCelda(legajo, fechaStr, store) {
   const l = String(legajo).trim();
@@ -137,10 +147,7 @@ export function calcularCelda(legajo, fechaStr, store) {
     // 1. Prioridad 1: Novedad puntual (sin codigo_sap_temporal)
     const puntual = novs.slice().reverse().find(n => !n.codigo_sap_temporal);
     if (puntual) {
-      let texto = puntual.motivo || "";
-      if (texto.toLowerCase() === "licencia anual") texto = "LA";
-      else if (texto.toLowerCase() === "franco") texto = "F";
-
+      const texto = normalizarTextoTurno(puntual.motivo || "");
       const bg = obtenerColorMotivo(puntual.motivo, puntual.tipo_color, puntual.color_hex, store);
       return {
         texto: texto,
@@ -158,7 +165,7 @@ export function calcularCelda(legajo, fechaStr, store) {
       const turnoTemp = store.turnos.get(codTurno);
       const val = valorEnCiclo(turnoTemp, f);
       const esFranco = val.toLowerCase() === "franco";
-      const texto = esFranco ? "F" : val;
+      const texto = normalizarTextoTurno(val);
       const bg = esFranco ? "#fde9d9" : (val.includes("22 a 06") ? "#ddd9c4" : "#daeef3");
       return {
         texto: texto,
@@ -180,15 +187,16 @@ export function calcularCelda(legajo, fechaStr, store) {
   }
 
   const esFranco = val.toLowerCase() === "franco";
+  const textoNormalizado = normalizarTextoTurno(val);
   if (esFranco) {
     return { texto: "F", bg: "#fde9d9", color_hex: "#fde9d9", tipo: "franco", novedad: null };
   }
 
   if (val.includes("22 a 06")) {
-    return { texto: val, bg: "#ddd9c4", color_hex: "#ddd9c4", tipo: "noche", novedad: null };
+    return { texto: textoNormalizado, bg: "#ddd9c4", color_hex: "#ddd9c4", tipo: "noche", novedad: null };
   }
 
-  return { texto: val, bg: "#ffffff", color_hex: "#ffffff", tipo: "normal", novedad: null };
+  return { texto: textoNormalizado, bg: "#ffffff", color_hex: "#ffffff", tipo: "normal", novedad: null };
 }
 
 // Cálculo para Diagramador de Vacaciones

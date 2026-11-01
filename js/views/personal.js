@@ -387,6 +387,25 @@ export class PersonalView {
 
     selCat.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
 
+    // 2. Poblar Sectores dinámicamente (asegurando el sector del agente)
+    let sectores = [...this.store.sectores];
+    if (sectores.length === 0) {
+      sectores = [
+        "Puesto Control", "Control Elect", "Control A", "Control B",
+        "Elementos Traccion", "Elementos Elect"
+      ];
+    }
+    if (agente && agente.sector_actual && !sectores.includes(agente.sector_actual)) {
+      sectores.unshift(agente.sector_actual);
+    }
+    selSec.innerHTML = sectores.map(s => `<option value="${s}">${s}</option>`).join('');
+
+    // 3. Poblar Grupos SAP dinámicamente
+    const turnosArr = Array.from(this.store.turnos.values());
+    selGrp.innerHTML = `<option value="">-- Sin asignar --</option>` + turnosArr.map(t => `
+      <option value="${t.codigo_sap}">[${t.codigo_sap}] ${t.descripcion || t.etiqueta_corta}</option>
+    `).join('');
+
     if (agente) {
       titulo.textContent = `Editar Agente [${agente.legajo}]`;
       inpLeg.value = agente.legajo;
@@ -395,7 +414,7 @@ export class PersonalView {
       inpApe.value = agente.apellido || "";
       inpNom.value = agente.nombre || "";
       selCat.value = agente.categoria || cats[0];
-      selSec.value = agente.sector_actual || this.store.sectores[0];
+      selSec.value = agente.sector_actual || (sectores[0] || "");
       selGrp.value = agente.grupo_sap_actual || "";
       inpNac.value = parseFechaISO(agente.fecha_nacimiento);
       inpEmp.value = parseFechaISO(agente.ingreso_empresa);
