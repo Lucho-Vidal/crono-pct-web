@@ -207,8 +207,18 @@ export class PersonalView {
         va = parseInt(String(va).replace(/\D/g, '') || "0", 10);
         vb = parseInt(String(vb).replace(/\D/g, '') || "0", 10);
       } else if (this.columnaOrden.includes("ingreso") || this.columnaOrden.includes("nacimiento")) {
-        va = parseFechaISO(va) || "";
-        vb = parseFechaISO(vb) || "";
+        const da = parseFechaISO(va) || "";
+        const db = parseFechaISO(vb) || "";
+        // Política NULLS LAST: agentes sin fecha van siempre al final
+        if (!da && !db) {
+          const apeA = String(a.apellido || "").toLowerCase();
+          const apeB = String(b.apellido || "").toLowerCase();
+          return apeA.localeCompare(apeB);
+        }
+        if (!da) return 1;
+        if (!db) return -1;
+        va = da;
+        vb = db;
       } else {
         va = String(va || "").toLowerCase();
         vb = String(vb || "").toLowerCase();
@@ -216,7 +226,11 @@ export class PersonalView {
 
       if (va < vb) return this.ordenAscendente ? -1 : 1;
       if (va > vb) return this.ordenAscendente ? 1 : -1;
-      return 0;
+
+      // Desempate secundario por apellido y nombre
+      const apeA = String(a.apellido || "").toLowerCase();
+      const apeB = String(b.apellido || "").toLowerCase();
+      return apeA.localeCompare(apeB);
     });
 
     return lista;
