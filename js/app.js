@@ -516,7 +516,7 @@ class AppController {
     const btnIniciarSetupTotp = document.getElementById('btn-iniciar-setup-totp');
     const btnDesactivarTotp = document.getElementById('btn-desactivar-totp');
     const totpSetupContainer = document.getElementById('totp-setup-container');
-    const qrCanvas = document.getElementById('totp-qr-canvas');
+    const qrContainer = document.getElementById('totp-qr-container');
     const btnTotpOpenApp = document.getElementById('btn-totp-open-app');
     const totpSecretText = document.getElementById('totp-secret-key-text');
     const btnCopiarSecret = document.getElementById('btn-copiar-secret');
@@ -595,10 +595,20 @@ class AppController {
           currentSecret = res.totp_secret;
 
           // Dibujar QR con QRCode si la librería está disponible
-          if (window.QRCode && qrCanvas) {
-            window.QRCode.toCanvas(qrCanvas, currentOtpUri, { width: 180, margin: 1 }, (err) => {
-              if (err) console.error("Error dibujando QR:", err);
-            });
+          if (qrContainer) {
+            qrContainer.innerHTML = '';
+            if (window.QRCode) {
+              new window.QRCode(qrContainer, {
+                text: currentOtpUri,
+                width: 180,
+                height: 180,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: window.QRCode.CorrectLevel.M
+              });
+            } else {
+              qrContainer.innerHTML = '<div style="color: var(--danger); font-size: 12px;">No se pudo cargar el motor de QR local. Utilizá la clave manual abajo.</div>';
+            }
           }
 
           if (totpSecretText) totpSecretText.value = currentSecret;
