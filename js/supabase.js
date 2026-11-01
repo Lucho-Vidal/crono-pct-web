@@ -449,6 +449,37 @@ export async function autenticarPorDispositivoBiometrico(username) {
   throw new Error("Respuesta inválida de autenticación biométrica.");
 }
 
+// 5.3 Configuración de 2FA TOTP (Google Authenticator)
+export async function configurarTotp(username, activar = true) {
+  const u = String(username || "").trim();
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc('fn_configurar_totp', {
+    p_username: u,
+    p_activar: Boolean(activar)
+  });
+
+  if (error) {
+    throw new Error(error.message || "Error al configurar Google Authenticator.");
+  }
+  return data;
+}
+
+export async function consultarEstadoSeguridadUsuario(username) {
+  const u = String(username || "").trim();
+  const client = getSupabaseClient();
+  try {
+    const { data, error } = await client
+      .from('usuarios_app')
+      .select('username, totp_activo, dispositivos_confianza')
+      .eq('username', u)
+      .single();
+    if (error) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
 // 6. DataStore en Memoria + Caché Offline en LocalStorage
 export class WebDataStore {
   constructor() {

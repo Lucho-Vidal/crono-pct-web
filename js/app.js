@@ -6,6 +6,8 @@ import {
   verificarDispositivoConfiable,
   registrarDispositivoConfiable,
   autenticarPorDispositivoBiometrico,
+  configurarTotp,
+  consultarEstadoSeguridadUsuario,
   getSession, 
   clearSession, 
   getConfig, 
@@ -45,6 +47,7 @@ class AppController {
     this.attachNetworkStatus();
     this.attachLoginEvents();
     this.attachConfigEvents();
+    this.attachSeguridadEvents();
     this.attachModalBackdropEvents();
 
     const session = getSession();
@@ -499,6 +502,194 @@ class AppController {
         cerrar();
         alert("Configuración de Supabase guardada. La página se reiniciará para aplicar las nuevas credenciales.");
         window.location.reload();
+      });
+    }
+  }
+
+  attachSeguridadEvents() {
+    const modalSeg = document.getElementById('modal-seguridad');
+    const btnOpenSeg = document.getElementById('btn-header-seguridad');
+    const btnCerrarSeg = document.getElementById('btn-cerrar-modal-seguridad');
+    const btnCerrarSegFooter = document.getElementById('btn-cerrar-seguridad-footer');
+
+    const totpStatusLabel = document.getElementById('totp-status-label');
+    const btnIniciarSetupTotp = document.getElementById('btn-iniciar-setup-totp');
+    const btnDesactivarTotp = document.getElementById('btn-desactivar-totp');
+    const totpSetupContainer = document.getElementById('totp-setup-container');
+    const qrCanvas = document.getElementById('totp-qr-canvas');
+    const btnTotpOpenApp = document.getElementById('btn-totp-open-app');
+    const totpSecretText = document.getElementById('totp-secret-key-text');
+    const btnCopiarSecret = document.getElementById('btn-copiar-secret');
+    const inpConfirmCode = document.getElementById('inp-totp-confirm-code');
+    const btnConfirmarActivacion = document.getElementById('btn-confirmar-activacion-totp');
+
+    const bioStatus = document.getElementById('biometric-local-status');
+    const btnToggleBio = document.getElementById('btn-toggle-biometria-local');
+
+    let currentOtpUri = "";
+    let currentSecret = "";
+
+    const actualizarVistaSeguridad = async () => {
+      const session = getSession();
+      if (!session) return;
+
+      // 1. Consultar estado en servidor
+      const uData = await consultarEstadoSeguridadUsuario(session.username);
+      const estaActivo = uData ? Boolean(uData.totp_activo) : false;
+
+      if (estaActivo) {
+        totpStatusLabel.textContent = "✅ Activo y Protegido";
+        totpStatusLabel.style.color = "var(--success, #10b981)";
+        if (btnIniciarSetupTotp) btnIniciarSetupTotp.style.display = "none";
+        if (btnDesactivarTotp) btnDesactivarTotp.style.display = "inline-block";
+        if (totpSetupContainer) totpSetupContainer.style.display = "none";
+      } else {
+        totpStatusLabel.textContent = "⚠️ Inactivo (Se recomienda activar)";
+        totpStatusLabel.style.color = "var(--warning, #f59e0b)";
+        if (btnIniciarSetupTotp) btnIniciarSetupTotp.style.display = "inline-block";
+        if (btnDesactivarTotp) btnDesactivarTotp.style.display = "none";
+      }
+
+      // 2. Estado de biometría local
+      const tieneHw = await isBiometricsAvailable();
+      const bioLocal = localStorage.getItem('crono_biometric_device_user');
+      if (!tieneHw) {
+        bioStatus.textContent = "Hardware biométrico no detectado en este equipo.";
+        btnToggleBio.style.display = "none";
+      } else if (bioLocal) {
+        bioStatus.textContent = "✅ Habilitado en este navegador.";
+        btnToggleBio.textContent = "🗑️ Desvincular de este equipo";
+        btnToggleBio.className = "btn btn-danger btn-pill";
+      } else {
+        bioStatus.textContent = "Disponible para habilitar.";
+        btnToggleBio.textContent = "👆 Habilitar en este equipo";
+        btnToggleBio.className = "btn btn-primary btn-pill";
+      }
+    };
+
+    const abrirModal = async () => {
+      await actualizarVistaSeguridad();
+      modalSeg.classList.add('active');
+    };
+
+    const cerrarModal = () => {
+      modalSeg.classList.remove('active');
+      if (totpSetupContainer) totpSetupContainer.style.display = 'none';
+    };
+
+    if (btnOpenSeg) btnOpenSeg.addEventListener('click', abrirModal);
+    if (btnCerrarSeg) btnCerrarSeg.addEventListener('click', cerrarModal);
+    if (btnCerrarSegFooter) btnCerrarSegFooter.addEventListener('click', cerrarModal);
+
+    // Iniciar configuración de Google Authenticator
+    if (btnIniciarSetupTotp) {
+      btnIniciarSetupTotp.addEventListener('click', async () => {
+        const session = getSession();
+        if (!session) return;
+        btnIniciarSetupTotp.disabled = true;
+        btnIniciarSetupTotp.textContent = "Generando claves...";
+
+        try {
+          const res = await configurarTotp(session.username, true);
+          currentOtpUri = res.otpauth_uri;
+          currentSecret = res.totp_secret;
+
+          // Dibujar QR con QRCode si la librería está disponible
+          if (window.QRCode && qrCanvas) {
+            window.QRCode.toCanvas(qrCanvas, currentOtpUri, { width: 180, margin: 1 }, (err) => {
+              if (err) console.error("Error dibujando QR:", err);
+            });
+          }
+
+          if (totpSecretText) totpSecretText.value = currentSecret;
+
+          // Enlace directo si está en el celular
+          if (btnTotpOpenApp) {
+            btnTotpOpenApp.href = currentOtpUri;
+            btnTotpOpenApp.style.display = /Android|iPhone|iPad/i.test(navigator.userAgent) ? "inline-block" : "none";
+          }
+
+          totpSetupContainer.style.display = "block";
+          if (inpConfirmCode) inpConfirmCode.focus();
+        } catch (e) {
+          alert("Error generando clave 2FA: " + (e.message || e));
+        } finally {
+          btnIniciarSetupTotp.disabled = false;
+          btnIniciarSetupTotp.textContent = "🔑 Configurar Google Authenticator";
+        }
+      });
+    }
+
+    // Copiar clave secreta
+    if (btnCopiarSecret) {
+      btnCopiarSecret.addEventListener('click', async () => {
+        if (!currentSecret) return;
+        try {
+          await navigator.clipboard.writeText(currentSecret);
+          btnCopiarSecret.textContent = "¡Copiado!";
+          setTimeout(() => { btnCopiarSecret.textContent = "📋 Copiar"; }, 2000);
+        } catch (err) {
+          prompt("Copiá esta clave manualmente:", currentSecret);
+        }
+      });
+    }
+
+    // Confirmar código de prueba
+    if (btnConfirmarActivacion) {
+      btnConfirmarActivacion.addEventListener('click', async () => {
+        const session = getSession();
+        const code = inpConfirmCode ? inpConfirmCode.value.trim() : "";
+        if (!code || code.length !== 6) {
+          alert("Por favor ingresá los 6 dígitos generados en Google Authenticator.");
+          return;
+        }
+
+        btnConfirmarActivacion.disabled = true;
+        btnConfirmarActivacion.textContent = "Validando...";
+
+        try {
+          await verificarTotpUsuario(session.username, code, true);
+          alert("¡Felicitaciones! Google Authenticator ha quedado activado y vinculado a tu cuenta.");
+          cerrarModal();
+        } catch (e) {
+          alert("Código incorrecto o desfasado. Verificá que la hora de tu celular sea la correcta: " + (e.message || e));
+        } finally {
+          btnConfirmarActivacion.disabled = false;
+          btnConfirmarActivacion.textContent = "Confirmar y Activar";
+        }
+      });
+    }
+
+    // Desactivar 2FA
+    if (btnDesactivarTotp) {
+      btnDesactivarTotp.addEventListener('click', async () => {
+        const session = getSession();
+        if (!confirm("¿Estás seguro de que deseas desactivar la verificación en dos pasos? Tu cuenta será menos segura.")) {
+          return;
+        }
+        try {
+          await configurarTotp(session.username, false);
+          alert("Google Authenticator ha sido desactivado.");
+          await actualizarVistaSeguridad();
+        } catch (e) {
+          alert("Error desactivando 2FA: " + (e.message || e));
+        }
+      });
+    }
+
+    // Alternar biometría local
+    if (btnToggleBio) {
+      btnToggleBio.addEventListener('click', async () => {
+        const session = getSession();
+        const bioLocal = localStorage.getItem('crono_biometric_device_user');
+        if (bioLocal) {
+          localStorage.removeItem('crono_biometric_device_user');
+          alert("Se ha desvinculado la biometría / Windows Hello de este equipo. La próxima vez ingresarás con tu contraseña normal de CRONO.");
+          await actualizarVistaSeguridad();
+        } else if (session) {
+          await this.consultarActivacionBiometrica(session);
+          await actualizarVistaSeguridad();
+        }
       });
     }
   }

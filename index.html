@@ -10,6 +10,9 @@
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://*.jsdelivr.net;">
 
+  <!-- Librería QR ligera autorizada por CSP -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#1A73E8">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -39,6 +42,7 @@
       </button>
 
       <button class="btn-icon" id="btn-header-sync" title="Sincronizar ahora con Supabase">🔄</button>
+      <button class="btn-icon" id="btn-header-seguridad" title="Seguridad, Biometría y Google Authenticator">🛡️</button>
       <button class="btn-icon" id="btn-header-config" title="Configurar Conexión Supabase (Solo Administrador)" style="display: none;">⚙️</button>
 
       <div class="user-badge" id="header-user-badge">
@@ -218,6 +222,109 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" id="btn-cancelar-config-supabase">Cancelar</button>
         <button class="btn btn-primary" id="btn-guardar-config-supabase">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Panel de Seguridad (2FA Google Authenticator y Biometría) -->
+  <div class="modal-overlay" id="modal-seguridad">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          <span>🛡️</span> Centro de Seguridad y Accesos
+        </h3>
+        <button class="btn-icon" id="btn-cerrar-modal-seguridad">✖</button>
+      </div>
+      <div class="modal-body" style="padding-top: 10px;">
+        <!-- Pestaña / Sección 1: Google Authenticator -->
+        <div class="card" style="padding: 14px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 8px;">
+          <h4 style="margin: 0 0 6px 0; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+            <span>🔐</span> Verificación en Dos Pasos (Google Authenticator)
+          </h4>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 0 0 12px 0;">
+            Protege tu cuenta exigiendo un código temporal de 6 dígitos al ingresar desde dispositivos nuevos.
+          </p>
+
+          <div id="totp-status-box" style="margin-bottom: 12px; font-size: 13px; font-weight: 600;">
+            Estado actual: <span id="totp-status-label" style="color: var(--text-muted);">Consultando...</span>
+          </div>
+
+          <!-- Bloque de configuración inicial (oculto si ya está activo) -->
+          <div id="totp-setup-container" style="display: none;">
+            <div style="text-align: center; margin: 12px 0; background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <canvas id="totp-qr-canvas" style="max-width: 180px; height: auto; margin: 0 auto; display: block;"></canvas>
+              <div style="font-size: 11px; color: #64748b; margin-top: 6px;">
+                Escanéalo con la cámara de Google Authenticator
+              </div>
+            </div>
+
+            <!-- Botón de apertura directa para celulares -->
+            <div style="margin-bottom: 12px; text-align: center;">
+              <a id="btn-totp-open-app" href="#" class="btn btn-secondary btn-pill" style="display: none; font-size: 11px; text-decoration: none; padding: 6px 14px; color: var(--primary); border-color: var(--primary);">
+                📱 Abrir directo en Google Authenticator (Mismo Celular)
+              </a>
+            </div>
+
+            <!-- Clave de texto alternativa para copiar -->
+            <div style="background-color: var(--bg-secondary); padding: 8px 12px; border-radius: 6px; margin-bottom: 14px;">
+              <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">
+                ¿Estás en el mismo celular o prefieres escribirla?:
+              </label>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="text" id="totp-secret-key-text" readonly style="font-family: monospace; font-size: 13px; font-weight: 700; flex: 1; padding: 6px 8px; border: 1px dashed var(--primary); background: #fff;">
+                <button type="button" class="btn btn-secondary" id="btn-copiar-secret" style="padding: 6px 10px; font-size: 11px;">
+                  📋 Copiar
+                </button>
+              </div>
+            </div>
+
+            <!-- Validación de prueba obligatoria -->
+            <div style="border-top: 1px solid var(--border); padding-top: 12px;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 6px;">
+                Ingresá el código de 6 dígitos generado por tu app:
+              </label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="inp-totp-confirm-code" placeholder="000000" maxlength="6" inputmode="numeric" style="width: 120px; text-align: center; font-size: 16px; font-weight: 700; letter-spacing: 0.2em;">
+                <button type="button" class="btn btn-primary" id="btn-confirmar-activacion-totp" style="flex: 1;">
+                  Confirmar y Activar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botones principales de acción -->
+          <div style="margin-top: 10px; display: flex; gap: 8px;">
+            <button type="button" class="btn btn-primary" id="btn-iniciar-setup-totp" style="font-size: 12px;">
+              🔑 Configurar Google Authenticator
+            </button>
+            <button type="button" class="btn btn-danger" id="btn-desactivar-totp" style="display: none; font-size: 12px;">
+              ✖ Desactivar 2FA
+            </button>
+          </div>
+        </div>
+
+        <!-- Pestaña / Sección 2: Dispositivos de Confianza & Biometría -->
+        <div class="card" style="padding: 14px; border: 1px solid var(--border); border-radius: 8px;">
+          <h4 style="margin: 0 0 6px 0; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+            <span>👆</span> Inicio Rápido (Huella / Windows Hello)
+          </h4>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 0 0 10px 0;">
+            Controlá el inicio de sesión rápido en este dispositivo.
+          </p>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 10px;">
+            <div>
+              <div style="font-size: 12px; font-weight: 600;">Este Dispositivo / Navegador</div>
+              <div id="biometric-local-status" style="font-size: 11px; color: var(--text-muted);">Verificando soporte...</div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-pill" id="btn-toggle-biometria-local" style="font-size: 11px; padding: 4px 10px;">
+              Administrar
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-cerrar-seguridad-footer">Cerrar</button>
       </div>
     </div>
   </div>
