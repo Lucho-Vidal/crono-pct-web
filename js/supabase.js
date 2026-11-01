@@ -222,21 +222,42 @@ export async function autenticarUsuario(username, password) {
       p_password_plain: p
     });
 
-    if (!error && data) {
-      limpiarIntentosFallidos();
-      const userSession = {
-        username: data.username,
-        nombre_completo: data.nombre_completo,
-        email: data.email || '',
-        rol: data.rol || 'CONSULTA',
-        session_token: data.session_token || data.auth_token || '',
-        token_expira: data.token_expira || null
-      };
-      saveSession(userSession);
-      return userSession;
+    if (error) {
+      const msg = error.message || "";
+      const code = error.code || "";
+      // Si la función RPC no existe en el esquema remoto (404 / PGRST202)
+      if (code === 'PGRST202' || error.status === 404 || msg.toLowerCase().includes('not found')) {
+        console.warn("RPC fn_autenticar_usuario no instalada en Supabase, intentando fallback:", msg);
+      } else {
+        // Es un error de autenticación legítimo lanzado por la función (credenciales, bloqueo, etc.)
+        registrarIntentoFallido();
+        throw new Error(msg || "Error de autenticación en el servidor.");
+      }
+    } else if (data) {
+      // Compatibilidad con versiones que devuelven { ok: false, error: "..." }
+      if (data.ok === false) {
+        registrarIntentoFallido();
+        throw new Error(data.error || "Credenciales inválidas.");
+      }
+
+      if (data.username) {
+        limpiarIntentosFallidos();
+        const userSession = {
+          username: data.username,
+          nombre_completo: data.nombre_completo,
+          email: data.email || '',
+          rol: data.rol || 'CONSULTA',
+          session_token: data.session_token || data.auth_token || '',
+          token_expira: data.token_expira || null
+        };
+        saveSession(userSession);
+        return userSession;
+      }
     }
   } catch (rpcErr) {
-    // Si la función RPC no existe aún en el esquema remoto, usar fallback
+    if (rpcErr.message && !rpcErr.message.toLowerCase().includes('fallback')) {
+      throw rpcErr;
+    }
     console.warn("RPC fn_autenticar_usuario no disponible, usando fallback:", rpcErr.message);
   }
 
