@@ -319,6 +319,19 @@ export async function autenticarUsuario(username, password) {
     throw new Error("Contraseña / PIN incorrecto.");
   }
 
+  // Si tiene TOTP activo, verificar si este dispositivo ya es de confianza
+  if (user.totp_activo === true && user.totp_secret) {
+    const devs = Array.isArray(user.dispositivos_confianza) ? user.dispositivos_confianza : [];
+    const esConfiable = devs.some(d => d && d.device_id === deviceId);
+    if (!esConfiable) {
+      return {
+        requiere_totp: true,
+        username: user.username,
+        mensaje: "Se requiere código de Google Authenticator."
+      };
+    }
+  }
+
   limpiarIntentosFallidos();
   const userSession = {
     username: user.username,

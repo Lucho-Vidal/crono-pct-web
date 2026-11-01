@@ -415,6 +415,38 @@ class AppController {
       await clearSession();
     } catch (e) {}
 
+    // 1. Desmontar visualmente todas las secciones operativas de inmediato
+    document.querySelectorAll('.view-section').forEach(sec => {
+      sec.classList.remove('active');
+    });
+
+    const headerBadge = document.getElementById('header-user-badge');
+    if (headerBadge) {
+      const lblNom = document.getElementById('header-user-name');
+      const lblRol = document.getElementById('header-user-role');
+      if (lblNom) lblNom.textContent = 'Usuario';
+      if (lblRol) lblRol.textContent = 'ROL';
+    }
+
+    const btnCfg = document.getElementById('btn-header-config');
+    if (btnCfg) btnCfg.style.display = 'none';
+
+    // 2. Limpiar formularios de login
+    const inpPass = document.getElementById('login-password');
+    if (inpPass) inpPass.value = '';
+
+    const totpForm = document.getElementById('totp-form');
+    if (totpForm) totpForm.style.display = 'none';
+
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) loginForm.style.display = 'block';
+
+    const errBox = document.getElementById('login-error-msg');
+    if (errBox) errBox.style.display = 'none';
+
+    // 3. Mostrar pantalla de login en primer plano
+    this.mostrarPantallaLogin();
+
     // Notificar al Service Worker para que purgue la caché de autenticación
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({ action: 'CLEAR_AUTH_CACHE' });
@@ -422,8 +454,6 @@ class AppController {
 
     if (porInactividad) {
       alert("Tu sesión ha sido cerrada automáticamente por inactividad (20 minutos) para proteger tus datos.");
-      window.location.reload();
-    } else {
       window.location.reload();
     }
   }
