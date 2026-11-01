@@ -113,7 +113,7 @@ export function getSupabaseClient() {
   const cfg = getConfig();
   const session = getSession();
   const username = session ? session.username : "admin";
-  const authToken = session ? (session.auth_token || "") : "";
+  const authToken = session ? (session.session_token || session.auth_token || "") : "";
 
   // Re-instanciar cliente con cabeceras de seguridad
   const headers = {
@@ -161,10 +161,10 @@ export async function verificarPassword(passwordIngresada, hashAlmacenado) {
   return ing === hashAlmacenado;
 }
 
-// 4. Sesión de Usuario
+// 4. Sesión de Usuario en sessionStorage (nunca almacena contraseñas ni hashes)
 export function getSession() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_SESSION);
+    const raw = sessionStorage.getItem(STORAGE_KEY_SESSION);
     return raw ? JSON.parse(raw) : null;
   } catch (e) {
     return null;
@@ -172,11 +172,27 @@ export function getSession() {
 }
 
 export function saveSession(user) {
-  localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(user));
+  // Asegurarse de no persistir password_hash ni passwords
+  const sessionData = {
+    username: user.username,
+    nombre_completo: user.nombre_completo,
+    email: user.email || '',
+    rol: user.rol || 'CONSULTA',
+    session_token: user.session_token || user.auth_token || '',
+    token_expira: user.token_expira || null
+  };
+  sessionStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(sessionData));
 }
 
-export function clearSession() {
-  localStorage.removeItem(STORAGE_KEY_SESSION);
+export async function clearSession() {
+  try {
+    const client = getSupabaseClient();
+    await client.rpc('fn_cerrar_sesion').catch(() => {});
+  } catch (e) {
+    // Si falla la red, continuar limpiando el cliente
+  }
+  sessionStorage.removeItem(STORAGE_KEY_SESSION);
+  localStorage.removeItem(STORAGE_KEY_CACHE);
 }
 
 // 5. Autenticación contra RPC fn_autenticar_usuario (con fallback seguro)
@@ -213,7 +229,8 @@ export async function autenticarUsuario(username, password) {
         nombre_completo: data.nombre_completo,
         email: data.email || '',
         rol: data.rol || 'CONSULTA',
-        auth_token: data.auth_token || hashIngresado
+        session_token: data.session_token || data.auth_token || '',
+        token_expira: data.token_expira || null
       };
       saveSession(userSession);
       return userSession;
@@ -256,7 +273,8 @@ export async function autenticarUsuario(username, password) {
     nombre_completo: user.nombre_completo,
     email: user.email || '',
     rol: user.rol || 'CONSULTA',
-    auth_token: user.password_hash || hashIngresado
+    session_token: hashIngresado,
+    token_expira: null
   };
 
   saveSession(userSession);

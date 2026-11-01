@@ -215,13 +215,63 @@ class AppController {
 
     const btnLogout = document.getElementById('btn-header-logout');
     if (btnLogout) {
-      btnLogout.addEventListener('click', () => {
+      btnLogout.addEventListener('click', async () => {
         if (confirm("¿Deseás cerrar la sesión actual?")) {
-          clearSession();
-          window.location.reload();
+          await this.ejecutarLogout(false);
         }
       });
     }
+  }
+
+  async ejecutarLogout(porInactividad = false) {
+    if (this.inactivityTimer) {
+      clearTimeout(this.inactivityTimer);
+      this.inactivityTimer = null;
+    }
+
+    try {
+      await clearSession();
+    } catch (e) {}
+
+    // Notificar al Service Worker para que purgue la caché de autenticación
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ action: 'CLEAR_AUTH_CACHE' });
+    }
+
+    if (porInactividad) {
+      alert("Tu sesión ha sido cerrada automáticamente por inactividad (20 minutos) para proteger tus datos.");
+      window.location.reload();
+    } else {
+      window.location.reload();
+    }
+  }
+
+  iniciarMonitorInactividad() {
+    const TIEMPO_INACTIVIDAD_MS = 20 * 60 * 1000; // 20 minutos
+    let ultimoReinicio = Date.now();
+
+    const reiniciarTimer = () => {
+      // Throttle: evitar reiniciar en cada milisegundo de movimiento del mouse
+      const ahora = Date.now();
+      if (ahora - ultimoReinicio < 2000) return;
+      ultimoReinicio = ahora;
+
+      if (this.inactivityTimer) {
+        clearTimeout(this.inactivityTimer);
+      }
+      this.inactivityTimer = setTimeout(() => {
+        const session = getSession();
+        if (session) {
+          this.ejecutarLogout(true);
+        }
+      }, TIEMPO_INACTIVIDAD_MS);
+    };
+
+    ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'].forEach(evt => {
+      window.addEventListener(evt, reiniciarTimer, { passive: true });
+    });
+
+    reiniciarTimer();
   }
 
   attachConfigEvents() {
@@ -311,6 +361,7 @@ class AppController {
     this.licenciasView = new LicenciasView(cLicencias, this.store);
 
     this.attachNavigationEvents();
+    this.iniciarMonitorInactividad();
 
     // Sincronización en segundo plano al arrancar
     this.store.sincronizar().then(() => {

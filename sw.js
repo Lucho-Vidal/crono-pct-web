@@ -42,6 +42,20 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Mensajería con clientes (Purga de caché sensible)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.action === 'CLEAR_AUTH_CACHE') {
+    // Purgar cualquier caché que pudiera contener datos no estáticos
+    caches.keys().then((keys) => {
+      keys.forEach((key) => {
+        if (key.includes('data') || key.includes('auth')) {
+          caches.delete(key);
+        }
+      });
+    });
+  }
+});
+
 // Intercepción de solicitudes de red
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -57,9 +71,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Solicitudes a Supabase o CDN externo:
-  if (url.origin.includes('supabase.co') || url.origin.includes('jsdelivr.net')) {
-    // Intentar red primero; si falla, responder con error controlado o dejar que el cliente use su cache local
+  // Solicitudes a Supabase: NUNCA cachear en Service Worker (estricto directo a red)
+  if (url.origin.includes('supabase.co')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Solicitudes a CDNs externos (ej. Supabase JS ESM): Red primero con fallback a caché
+  if (url.origin.includes('jsdelivr.net')) {
     event.respondWith(
       fetch(event.request).catch(() => {
         return caches.match(event.request);
