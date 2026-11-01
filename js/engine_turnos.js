@@ -129,6 +129,28 @@ export function normalizarTextoTurno(texto) {
   return t;
 }
 
+export function extraerCodigoSapDeTexto(texto, store) {
+  const s = String(texto || "").trim();
+  if (!s || !store || !store.turnos) return "";
+  if (store.turnos.has(s)) return s;
+
+  const sUp = s.toUpperCase();
+  for (const [cod] of store.turnos.entries()) {
+    const codUp = cod.toUpperCase();
+    if (sUp === codUp || sUp.startsWith(`${codUp} -`) || sUp.startsWith(`${codUp} –`) || sUp === `COBERTURA TURNO ${codUp}`) {
+      return cod;
+    }
+  }
+  return "";
+}
+
+export function extraerCodigoSapDeNovedad(nov, store) {
+  if (!nov) return "";
+  const codTemp = String(nov.codigo_sap_temporal || "").trim();
+  if (codTemp) return codTemp;
+  return extraerCodigoSapDeTexto(nov.motivo, store);
+}
+
 // Cálculo maestro de celda de Sábana
 export function calcularCelda(legajo, fechaStr, store) {
   const l = String(legajo).trim();
@@ -144,8 +166,8 @@ export function calcularCelda(legajo, fechaStr, store) {
   });
 
   if (novs && novs.length > 0) {
-    // 1. Prioridad 1: Novedad puntual (sin codigo_sap_temporal)
-    const puntual = novs.slice().reverse().find(n => !n.codigo_sap_temporal);
+    // 1. Prioridad 1: Novedad puntual (sin codigo_sap_temporal ni turno SAP en motivo)
+    const puntual = novs.slice().reverse().find(n => !extraerCodigoSapDeNovedad(n, store));
     if (puntual) {
       const texto = normalizarTextoTurno(puntual.motivo || "");
       const bg = obtenerColorMotivo(puntual.motivo, puntual.tipo_color, puntual.color_hex, store);
@@ -159,9 +181,9 @@ export function calcularCelda(legajo, fechaStr, store) {
     }
 
     // 2. Prioridad 2: Cobertura temporal por Turno SAP (con francos rotativos 'F')
-    const temporal = novs.slice().reverse().find(n => Boolean(n.codigo_sap_temporal));
+    const temporal = novs.slice().reverse().find(n => Boolean(extraerCodigoSapDeNovedad(n, store)));
     if (temporal) {
-      const codTurno = temporal.codigo_sap_temporal;
+      const codTurno = extraerCodigoSapDeNovedad(temporal, store);
       const turnoTemp = store.turnos.get(codTurno);
       const val = valorEnCiclo(turnoTemp, f);
       const esFranco = val.toLowerCase() === "franco";

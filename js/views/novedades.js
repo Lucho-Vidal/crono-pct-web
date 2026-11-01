@@ -98,12 +98,17 @@ export class NovedadesView {
             </div>
 
             <div class="form-group">
-              <label>Motivo:</label>
+              <label>Motivo / Turno SAP:</label>
               <select id="nov-form-motivo">
+                <!-- Motivos del catálogo -->
                 ${this.store.catalogo_motivos.map(m => `
-                  <option value="${m.valor}" data-color="${m.color_hex || ''}" data-tipo="${m.tipo_color || 'licencia'}">${m.valor}</option>
+                  <option value="${m.valor}" data-color="${m.color_hex || ''}" data-tipo="${m.tipo_color || 'licencia'}" data-sap="">${m.valor}</option>
                 `).join('')}
-                <option value="OTRO">Otro Motivo Personalizado...</option>
+                <!-- Turnos SAP activos -->
+                ${Array.from(this.store.turnos.values()).filter(t => t.activo !== false).map(t => `
+                  <option value="${t.codigo_sap} - ${t.descripcion || t.etiqueta_corta || t.codigo_sap}" data-sap="${t.codigo_sap}" data-tipo="cambio" data-color="#daeef3">${t.codigo_sap} - ${t.descripcion || t.etiqueta_corta || t.codigo_sap}</option>
+                `).join('')}
+                <option value="OTRO" data-sap="">Otro Motivo Personalizado...</option>
               </select>
               <input type="text" id="nov-form-motivo-otro" placeholder="Escribir motivo personalizado..." style="display: none; margin-top: 6px;">
             </div>
@@ -128,28 +133,15 @@ export class NovedadesView {
               </div>
             </div>
 
-            <!-- Sección Turno SAP Temporal -->
-            <div style="background-color: #f1f5f9; padding: 12px; border-radius: 6px; border: 1px solid var(--border-light); margin-top: 6px;">
-              <label style="font-weight: 700; font-size: 12px; color: #334155;">🔄 Cobertura Temporal por Turno SAP (Opcional):</label>
-              <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Proyecta automáticamente el horario y los francos de este turno durante el período.</p>
-              <div class="form-group" style="margin-bottom: 8px;">
-                <label>Turno SAP Temporal:</label>
-                <select id="nov-form-sap-temporal" style="width: 100%;">
-                  <option value="">-- Ninguno (Turno habitual) --</option>
-                  ${Array.from(this.store.turnos.values()).map(t => `
-                    <option value="${t.codigo_sap}">[${t.codigo_sap}] ${t.descripcion || t.etiqueta_corta}</option>
-                  `).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Legajo Reemplazado:</label>
-                <select id="nov-form-legajo-reemplazado" style="width: 100%;">
-                  <option value="">-- Ninguno --</option>
-                  ${this.store.personal.filter(p => p.activo !== false).map(p => `
-                    <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre}</option>
-                  `).join('')}
-                </select>
-              </div>
+            <!-- Reemplaza a (opcional) -->
+            <div class="form-group" style="margin-top: 6px;">
+              <label>Reemplaza a (opcional):</label>
+              <select id="nov-form-legajo-reemplazado" style="width: 100%;">
+                <option value="">-- Ninguno --</option>
+                ${this.store.personal.filter(p => p.activo !== false).map(p => `
+                  <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre}</option>
+                `).join('')}
+              </select>
             </div>
 
             <div class="form-group">
@@ -217,9 +209,9 @@ export class NovedadesView {
             <th>Apellido y Nombre</th>
             <th>Desde</th>
             <th>Hasta</th>
-            <th>Motivo</th>
+            <th>Motivo / Turno SAP</th>
             <th>Tipo / Color</th>
-            <th>Turno Temporal</th>
+            <th>Reemplaza a</th>
             <th>Observaciones</th>
             <th style="text-align: center;">Acciones</th>
           </tr>
@@ -234,6 +226,13 @@ export class NovedadesView {
         const ag = this.store.personal.find(p => String(p.legajo).trim() === String(n.legajo).trim());
         const apeNom = ag ? `${ag.apellido}, ${ag.nombre}` : "Agente no encontrado";
         const colorHex = n.color_hex || "#e2e8f0";
+
+        let reempTexto = "—";
+        if (n.legajo_reemplazado) {
+          const agR = this.store.personal.find(p => String(p.legajo).trim() === String(n.legajo_reemplazado).trim());
+          reempTexto = agR ? `[${n.legajo_reemplazado}] ${agR.apellido}` : `[${n.legajo_reemplazado}]`;
+        }
+
         htmlTable += `
           <tr>
             <td>${n.id}</td>
@@ -246,7 +245,7 @@ export class NovedadesView {
               <span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; background-color: ${colorHex}; border: 1px solid #94a3b8; vertical-align: middle; margin-right: 4px;"></span>
               ${n.tipo_color || 'licencia'}
             </td>
-            <td>${n.codigo_sap_temporal ? `<b>${n.codigo_sap_temporal}</b>` : '—'}</td>
+            <td>${reempTexto}</td>
             <td title="${n.observaciones || ''}">${(n.observaciones || '—').slice(0, 30)}</td>
             <td style="text-align: center; white-space: nowrap;">
               <button class="btn btn-secondary btn-pill btn-editar-nov" data-id="${n.id}">✏️</button>
@@ -269,6 +268,13 @@ export class NovedadesView {
         const ag = this.store.personal.find(p => String(p.legajo).trim() === String(n.legajo).trim());
         const apeNom = ag ? `${ag.apellido}, ${ag.nombre}` : `Legajo ${n.legajo}`;
         const colorHex = n.color_hex || "#e2e8f0";
+
+        let reempTexto = "";
+        if (n.legajo_reemplazado) {
+          const agR = this.store.personal.find(p => String(p.legajo).trim() === String(n.legajo_reemplazado).trim());
+          reempTexto = `<div style="font-size: 12px; margin-bottom: 4px; color: #1e3a8a;">👥 Reemplaza a: <b>${agR ? `${agR.apellido}, ${agR.nombre} (${n.legajo_reemplazado})` : n.legajo_reemplazado}</b></div>`;
+        }
+
         htmlCards += `
           <div class="novedad-card">
             <div class="card-header">
@@ -280,7 +286,7 @@ export class NovedadesView {
                 ${n.motivo}
               </span>
             </div>
-            ${n.codigo_sap_temporal ? `<div style="font-size: 12px; margin-bottom: 4px;">🔄 Turno Temporal: <b>${n.codigo_sap_temporal}</b></div>` : ''}
+            ${reempTexto}
             ${n.observaciones ? `<div style="font-size: 12px; color: #475569; margin-bottom: 8px;">📝 ${n.observaciones}</div>` : ''}
             <div style="display: flex; justify-content: flex-end; gap: 8px;">
               <button class="btn btn-secondary btn-pill btn-editar-nov" data-id="${n.id}">✏️ Editar</button>
@@ -426,15 +432,23 @@ export class NovedadesView {
     const selLegReemp = this.container.querySelector("#nov-form-legajo-reemplazado");
     const txtObs = this.container.querySelector("#nov-form-obs");
 
-    // Repoblar agentes y turnos actualizados
+    // Repoblar agentes, motivos de catálogo y turnos SAP
     const agentesActivos = this.store.personal.filter(p => p.activo !== false);
     selLeg.innerHTML = '<option value="">-- Seleccionar Agente --</option>' + agentesActivos.map(p => `
       <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre} (${p.sector_actual || ''})</option>
     `).join('');
 
-    selSapTemp.innerHTML = '<option value="">-- Ninguno (Turno habitual) --</option>' + Array.from(this.store.turnos.values()).map(t => `
-      <option value="${t.codigo_sap}">[${t.codigo_sap}] ${t.descripcion || t.etiqueta_corta}</option>
-    `).join('');
+    // Motivos combinados: primero motivos regulares de catálogo, luego Turnos SAP activos
+    const opcionesMotivos = [];
+    (this.store.catalogo_motivos || []).forEach(m => {
+      opcionesMotivos.push(`<option value="${m.valor}" data-color="${m.color_hex || ''}" data-tipo="${m.tipo_color || 'licencia'}" data-sap="">${m.valor}</option>`);
+    });
+    Array.from(this.store.turnos.values()).filter(t => t.activo !== false).forEach(t => {
+      const textoTurno = `${t.codigo_sap} - ${t.descripcion || t.etiqueta_corta || t.codigo_sap}`;
+      opcionesMotivos.push(`<option value="${textoTurno}" data-sap="${t.codigo_sap}" data-tipo="cambio" data-color="#daeef3">${textoTurno}</option>`);
+    });
+    opcionesMotivos.push('<option value="OTRO" data-sap="">Otro Motivo Personalizado...</option>');
+    selMot.innerHTML = opcionesMotivos.join('');
 
     selLegReemp.innerHTML = '<option value="">-- Ninguno --</option>' + agentesActivos.map(p => `
       <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre}</option>
@@ -447,21 +461,25 @@ export class NovedadesView {
       inpIni.value = parseFechaISO(novedad.fecha_inicio);
       inpFin.value = parseFechaISO(novedad.fecha_fin);
 
-      // Chequear si motivo está en catálogo
-      const existeMot = Array.from(selMot.options).some(o => o.value === novedad.motivo);
-      if (existeMot) {
-        selMot.value = novedad.motivo;
+      // Chequear si motivo está en las opciones (o por codigo_sap_temporal)
+      const motivoBuscado = novedad.motivo || "";
+      let optCoincidente = Array.from(selMot.options).find(o => o.value === motivoBuscado);
+      if (!optCoincidente && novedad.codigo_sap_temporal) {
+        optCoincidente = Array.from(selMot.options).find(o => o.getAttribute("data-sap") === novedad.codigo_sap_temporal);
+      }
+
+      if (optCoincidente) {
+        selMot.value = optCoincidente.value;
         inpMotOtro.style.display = "none";
       } else {
         selMot.value = "OTRO";
         inpMotOtro.style.display = "block";
-        inpMotOtro.value = novedad.motivo;
+        inpMotOtro.value = motivoBuscado;
       }
 
-      selTipo.value = novedad.tipo_color || "licencia";
-      inpColor.value = novedad.color_hex || "#ffff00";
-      prevColor.textContent = (novedad.color_hex || "#ffff00").toUpperCase();
-      selSapTemp.value = novedad.codigo_sap_temporal || "";
+      selTipo.value = novedad.tipo_color || (optCoincidente ? optCoincidente.getAttribute("data-tipo") : "licencia") || "licencia";
+      inpColor.value = novedad.color_hex || (optCoincidente ? optCoincidente.getAttribute("data-color") : "#ffff00") || "#ffff00";
+      prevColor.textContent = (inpColor.value).toUpperCase();
       selLegReemp.value = novedad.legajo_reemplazado || "";
       txtObs.value = novedad.observaciones || "";
     } else {
@@ -477,7 +495,6 @@ export class NovedadesView {
       selTipo.value = "licencia";
       inpColor.value = "#ffff00";
       prevColor.textContent = "#FFFF00";
-      selSapTemp.value = "";
       selLegReemp.value = "";
       txtObs.value = "";
     }
@@ -493,7 +510,6 @@ export class NovedadesView {
     const inpMotOtro = this.container.querySelector("#nov-form-motivo-otro");
     const selTipo = this.container.querySelector("#nov-form-tipo-color");
     const inpColor = this.container.querySelector("#nov-form-color-hex");
-    const selSapTemp = this.container.querySelector("#nov-form-sap-temporal");
     const selLegReemp = this.container.querySelector("#nov-form-legajo-reemplazado");
     const txtObs = this.container.querySelector("#nov-form-obs");
 
@@ -515,11 +531,33 @@ export class NovedadesView {
     }
 
     let motivo = selMot.value;
+    let codigoSapTemporal = null;
+
     if (motivo === "OTRO") {
       motivo = inpMotOtro.value.trim();
       if (!motivo) {
         alert("Por favor especificá el motivo personalizado.");
         return;
+      }
+    } else {
+      const optSel = selMot.selectedOptions && selMot.selectedOptions[0];
+      if (optSel) {
+        const codSap = optSel.getAttribute("data-sap");
+        if (codSap) {
+          codigoSapTemporal = codSap;
+        }
+      }
+    }
+
+    // Si aún no se detectó por atributo pero coincide con un turno de store.turnos
+    if (!codigoSapTemporal) {
+      const sUp = motivo.trim().toUpperCase();
+      for (const [cod] of this.store.turnos.entries()) {
+        const codUp = cod.toUpperCase();
+        if (sUp === codUp || sUp.startsWith(`${codUp} -`) || sUp.startsWith(`${codUp} –`)) {
+          codigoSapTemporal = cod;
+          break;
+        }
       }
     }
 
@@ -539,7 +577,7 @@ export class NovedadesView {
       motivo: motivo,
       tipo_color: selTipo.value,
       color_hex: inpColor.value,
-      codigo_sap_temporal: selSapTemp.value || null,
+      codigo_sap_temporal: codigoSapTemporal,
       legajo_reemplazado: selLegReemp.value || null,
       observaciones: txtObs.value.trim() || null,
       activo: true,
