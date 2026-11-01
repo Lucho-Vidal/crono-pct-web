@@ -130,6 +130,46 @@
         </div>
       </form>
 
+      <!-- Formulario de Verificación TOTP (Google Authenticator) -->
+      <form id="totp-form" style="display: none;">
+        <div style="text-align: center; margin-bottom: 14px;">
+          <div style="font-size: 32px; margin-bottom: 4px;">🔐</div>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text);">Google Authenticator</h3>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);">
+            Ingresá el código de 6 dígitos de tu app de autenticación para continuar.
+          </p>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <input 
+            type="text" 
+            id="totp-code" 
+            inputmode="numeric" 
+            pattern="[0-9]*" 
+            maxlength="6" 
+            autocomplete="one-time-code" 
+            placeholder="000 000" 
+            required
+            style="letter-spacing: 0.35em; text-align: center; font-size: 22px; font-weight: 700; height: 48px; border-radius: 8px; border: 2px solid var(--primary);"
+          >
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="totp-confiar-dispositivo" checked style="width: 16px; height: 16px; cursor: pointer;">
+          <label for="totp-confiar-dispositivo" style="font-size: 12px; color: var(--text); cursor: pointer; user-select: none;">
+            Confiar en este dispositivo (no volver a pedir)
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="btn-totp-submit" style="width: 100%; min-height: 42px; margin-bottom: 8px;">
+          Verificar Código
+        </button>
+
+        <button type="button" class="btn btn-secondary" id="btn-totp-volver" style="width: 100%; min-height: 36px; font-size: 12px;">
+          ← Volver a Ingreso
+        </button>
+      </form>
+
       <div style="margin-top: 16px; text-align: center;">
         <button class="btn btn-secondary btn-pill" id="btn-login-config" style="font-size: 11px; display: none;">
           ⚙️ Configurar Supabase URL / Key

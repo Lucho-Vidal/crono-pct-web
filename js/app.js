@@ -2,6 +2,7 @@
 import { 
   WebDataStore, 
   autenticarUsuario, 
+  verificarTotpUsuario,
   getSession, 
   clearSession, 
   getConfig, 
@@ -197,9 +198,23 @@ class AppController {
         btnLogin.textContent = 'Verificando...';
 
         try {
-          const user = await autenticarUsuario(inpUser.value, inpPass.value);
+          const res = await autenticarUsuario(inpUser.value, inpPass.value);
+          if (res && res.requiere_totp) {
+            // Mostrar formulario de TOTP
+            this.usuarioPendienteTotp = res.username || inpUser.value;
+            form.style.display = 'none';
+            if (totpForm) {
+              totpForm.style.display = 'block';
+              if (totpCode) {
+                totpCode.value = '';
+                totpCode.focus();
+              }
+            }
+            return;
+          }
+
           this.ocultarPantallaLogin();
-          await this.iniciarSistema(user);
+          await this.iniciarSistema(res);
         } catch (err) {
           errBox.textContent = err.message || "Error al iniciar sesión.";
           errBox.style.display = 'block';
@@ -210,6 +225,48 @@ class AppController {
             btnLogin.textContent = 'Ingresar a CRONO';
           }
         }
+      });
+    }
+
+    // Eventos del formulario TOTP (Google Authenticator)
+    const totpForm = document.getElementById('totp-form');
+    const totpCode = document.getElementById('totp-code');
+    const totpConfiar = document.getElementById('totp-confiar-dispositivo');
+    const btnTotpSubmit = document.getElementById('btn-totp-submit');
+    const btnTotpVolver = document.getElementById('btn-totp-volver');
+
+    if (totpForm) {
+      totpForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errBox.style.display = 'none';
+        btnTotpSubmit.disabled = true;
+        btnTotpSubmit.textContent = 'Verificando...';
+
+        try {
+          const user = await verificarTotpUsuario(
+            this.usuarioPendienteTotp || inpUser.value,
+            totpCode.value,
+            totpConfiar ? totpConfiar.checked : true
+          );
+          this.ocultarPantallaLogin();
+          totpForm.style.display = 'none';
+          form.style.display = 'block';
+          await this.iniciarSistema(user);
+        } catch (err) {
+          errBox.textContent = err.message || "Código TOTP inválido.";
+          errBox.style.display = 'block';
+        } finally {
+          btnTotpSubmit.disabled = false;
+          btnTotpSubmit.textContent = 'Verificar Código';
+        }
+      });
+    }
+
+    if (btnTotpVolver) {
+      btnTotpVolver.addEventListener('click', () => {
+        if (totpForm) totpForm.style.display = 'none';
+        if (form) form.style.display = 'block';
+        errBox.style.display = 'none';
       });
     }
 

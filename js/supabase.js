@@ -9,6 +9,26 @@ const STORAGE_KEY_CONFIG = "crono_web_config";
 const STORAGE_KEY_SESSION = "crono_web_session";
 const STORAGE_KEY_CACHE = "crono_web_cache_v1";
 const STORAGE_KEY_LOCKOUT = "crono_web_login_lockout";
+const STORAGE_KEY_DEVICE = "crono_device_fingerprint";
+
+// Generador e identificador único de huella de dispositivo persistente
+export function getDeviceFingerprint() {
+  try {
+    let fp = localStorage.getItem(STORAGE_KEY_DEVICE);
+    if (!fp) {
+      // Generar UUID v4 criptográfico
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        fp = crypto.randomUUID();
+      } else {
+        fp = 'dev_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now().toString(36);
+      }
+      localStorage.setItem(STORAGE_KEY_DEVICE, fp);
+    }
+    return fp;
+  } catch (e) {
+    return 'crono_browser_generic';
+  }
+}
 
 // Gestor de Intentos Fallidos y Bloqueo Anti-Fuerza Bruta
 export function getLoginLockoutState() {
@@ -213,13 +233,15 @@ export async function autenticarUsuario(username, password) {
 
   const client = getSupabaseClient();
   const hashIngresado = await sha256(p);
+  const deviceId = getDeviceFingerprint();
 
   // Intentar primero autenticación segura mediante RPC en el servidor
   try {
     const { data, error } = await client.rpc('fn_autenticar_usuario', {
       p_username: u,
       p_password_hash: hashIngresado,
-      p_password_plain: p
+      p_password_plain: p,
+      p_device_id: deviceId
     });
 
     if (error) {
@@ -238,6 +260,15 @@ export async function autenticarUsuario(username, password) {
       if (data.ok === false) {
         registrarIntentoFallido();
         throw new Error(data.error || "Credenciales inválidas.");
+      }
+
+      // Si el servidor detectó que el usuario tiene TOTP activo y el dispositivo no es de confianza
+      if (data.requiere_totp === true) {
+        return {
+          requiere_totp: true,
+          username: data.username || u,
+          mensaje: data.mensaje || "Se requiere código de Google Authenticator."
+        };
       }
 
       if (data.username) {
@@ -300,6 +331,46 @@ export async function autenticarUsuario(username, password) {
 
   saveSession(userSession);
   return userSession;
+}
+
+// 5.1 Validación y Registro TOTP (Google Authenticator)
+export async function verificarTotpUsuario(username, codigoTotp, confiarDispositivo = true, nombreDispositivo = "Navegador Web") {
+  const u = String(username || "").trim();
+  const c = String(codigoTotp || "").replace(/\s+/g, '');
+  const deviceId = getDeviceFingerprint();
+
+  if (!u || !c) {
+    throw new Error("Por favor ingresá el código de 6 dígitos.");
+  }
+
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc('fn_verificar_y_registrar_totp', {
+    p_username: u,
+    p_totp_code: c,
+    p_device_id: deviceId,
+    p_confiar_dispositivo: Boolean(confiarDispositivo),
+    p_device_nombre: String(nombreDispositivo || 'Navegador Web')
+  });
+
+  if (error) {
+    throw new Error(error.message || "Error al verificar código TOTP.");
+  }
+
+  if (data && data.username) {
+    limpiarIntentosFallidos();
+    const userSession = {
+      username: data.username,
+      nombre_completo: data.nombre_completo,
+      email: data.email || '',
+      rol: data.rol || 'CONSULTA',
+      session_token: data.session_token || data.auth_token || '',
+      token_expira: data.token_expira || null
+    };
+    saveSession(userSession);
+    return userSession;
+  }
+
+  throw new Error("Respuesta inválida del servidor al verificar TOTP.");
 }
 
 // 6. DataStore en Memoria + Caché Offline en LocalStorage
