@@ -13,6 +13,7 @@ export class NovedadesView {
     this.filtroMotivo = "TODOS";
     this.filtroDesde = "";
     this.filtroHasta = "";
+    this.mostrarInactivos = false;
     this.vistaTarjetas = window.innerWidth <= 768;
 
     this.novedadEnEdicion = null;
@@ -54,6 +55,10 @@ export class NovedadesView {
           </div>
 
           <div class="toolbar-group">
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; cursor: pointer; user-select: none;">
+              <input type="checkbox" id="chk-nov-inactivos" ${this.mostrarInactivos ? 'checked' : ''}>
+              Mostrar dadas de baja
+            </label>
             <button class="btn btn-secondary" id="btn-nov-toggle-vista">${this.vistaTarjetas ? '📊 Tabla' : '📱 Tarjetas'}</button>
             <button class="btn btn-primary" id="btn-nov-nueva">➕ Nueva Novedad</button>
           </div>
@@ -159,7 +164,10 @@ export class NovedadesView {
   }
 
   obtenerNovedadesFiltradas() {
-    let novs = this.store.novedades.filter(n => n.activo !== false);
+    let novs = this.store.novedades;
+    if (!this.mostrarInactivos) {
+      novs = novs.filter(n => n.activo !== false && n.activo !== 0 && n.activo !== '0');
+    }
 
     if (this.filtroDesde) {
       novs = novs.filter(n => parseFechaISO(n.fecha_fin) >= this.filtroDesde);
@@ -226,6 +234,7 @@ export class NovedadesView {
         const ag = this.store.personal.find(p => String(p.legajo).trim() === String(n.legajo).trim());
         const apeNom = ag ? `${ag.apellido}, ${ag.nombre}` : "Agente no encontrado";
         const colorHex = n.color_hex || "#e2e8f0";
+        const esInactiva = n.activo === false || n.activo === 0 || n.activo === '0';
 
         let reempTexto = "—";
         if (n.legajo_reemplazado) {
@@ -234,13 +243,16 @@ export class NovedadesView {
         }
 
         htmlTable += `
-          <tr>
-            <td>${n.id}</td>
+          <tr ${esInactiva ? 'style="opacity: 0.6; background-color: #f8fafc;"' : ''}>
+            <td>
+              ${n.id}
+              ${esInactiva ? '<span class="brand-badge" style="background-color: #94a3b8; color: white; font-size: 9px; margin-left: 4px; padding: 2px 4px; border-radius: 4px;">BAJA</span>' : ''}
+            </td>
             <td style="font-weight: 700;">${n.legajo}</td>
             <td>${apeNom}</td>
             <td>${n.fecha_inicio}</td>
             <td>${n.fecha_fin}</td>
-            <td><b>${n.motivo}</b></td>
+            <td><b ${esInactiva ? 'style="text-decoration: line-through;"' : ''}>${n.motivo}</b></td>
             <td>
               <span style="display: inline-block; width: 14px; height: 14px; border-radius: 3px; background-color: ${colorHex}; border: 1px solid #94a3b8; vertical-align: middle; margin-right: 4px;"></span>
               ${n.tipo_color || 'licencia'}
@@ -248,8 +260,12 @@ export class NovedadesView {
             <td>${reempTexto}</td>
             <td title="${n.observaciones || ''}">${(n.observaciones || '—').slice(0, 30)}</td>
             <td style="text-align: center; white-space: nowrap;">
-              <button class="btn btn-secondary btn-pill btn-editar-nov" data-id="${n.id}">✏️</button>
-              <button class="btn btn-danger btn-pill btn-eliminar-nov" data-id="${n.id}">🗑️</button>
+              ${esInactiva ? `
+                <button class="btn btn-secondary btn-pill btn-reactivar-nov" data-id="${n.id}" title="Reactivar novedad">♻️ Reactivar</button>
+              ` : `
+                <button class="btn btn-secondary btn-pill btn-editar-nov" data-id="${n.id}">✏️</button>
+                <button class="btn btn-danger btn-pill btn-eliminar-nov" data-id="${n.id}">🗑️</button>
+              `}
             </td>
           </tr>
         `;
@@ -268,6 +284,7 @@ export class NovedadesView {
         const ag = this.store.personal.find(p => String(p.legajo).trim() === String(n.legajo).trim());
         const apeNom = ag ? `${ag.apellido}, ${ag.nombre}` : `Legajo ${n.legajo}`;
         const colorHex = n.color_hex || "#e2e8f0";
+        const esInactiva = n.activo === false || n.activo === 0 || n.activo === '0';
 
         let reempTexto = "";
         if (n.legajo_reemplazado) {
@@ -276,10 +293,10 @@ export class NovedadesView {
         }
 
         htmlCards += `
-          <div class="novedad-card">
+          <div class="novedad-card" ${esInactiva ? 'style="opacity: 0.65; background-color: #f8fafc; border-left: 4px solid #94a3b8;"' : ''}>
             <div class="card-header">
               <div>
-                <div class="card-title">${apeNom} <span style="color: var(--text-muted); font-size: 12px;">(${n.legajo})</span></div>
+                <div class="card-title">${apeNom} <span style="color: var(--text-muted); font-size: 12px;">(${n.legajo})</span> ${esInactiva ? '<span class="brand-badge" style="background-color: #94a3b8; color: white; font-size: 9px; padding: 2px 4px; border-radius: 4px;">BAJA</span>' : ''}</div>
                 <div class="card-dates">📅 ${n.fecha_inicio} al ${n.fecha_fin}</div>
               </div>
               <span class="card-badge" style="background-color: ${colorHex}; border: 1px solid #94a3b8;">
@@ -289,8 +306,12 @@ export class NovedadesView {
             ${reempTexto}
             ${n.observaciones ? `<div style="font-size: 12px; color: #475569; margin-bottom: 8px;">📝 ${n.observaciones}</div>` : ''}
             <div style="display: flex; justify-content: flex-end; gap: 8px;">
-              <button class="btn btn-secondary btn-pill btn-editar-nov" data-id="${n.id}">✏️ Editar</button>
-              <button class="btn btn-danger btn-pill btn-eliminar-nov" data-id="${n.id}">🗑️ Eliminar</button>
+              ${esInactiva ? `
+                <button class="btn btn-secondary btn-pill btn-reactivar-nov" data-id="${n.id}">♻️ Reactivar</button>
+              ` : `
+                <button class="btn btn-secondary btn-pill btn-editar-nov" data-id="${n.id}">✏️ Editar</button>
+                <button class="btn btn-danger btn-pill btn-eliminar-nov" data-id="${n.id}">🗑️ Eliminar</button>
+              `}
             </div>
           </div>
         `;
@@ -315,6 +336,14 @@ export class NovedadesView {
     if (selSec) selSec.addEventListener("change", (e) => { this.filtroSector = e.target.value; this.renderTablaOCards(); });
     if (selMot) selMot.addEventListener("change", (e) => { this.filtroMotivo = e.target.value; this.renderTablaOCards(); });
     if (inpBuscar) inpBuscar.addEventListener("input", (e) => { this.filtroTexto = e.target.value; this.renderTablaOCards(); });
+
+    const chkInactivos = this.container.querySelector("#chk-nov-inactivos");
+    if (chkInactivos) {
+      chkInactivos.addEventListener("change", (e) => {
+        this.mostrarInactivos = e.target.checked;
+        this.renderTablaOCards();
+      });
+    }
 
     if (btnToggleVista) {
       btnToggleVista.addEventListener("click", () => {
@@ -397,6 +426,13 @@ export class NovedadesView {
       btn.addEventListener("click", () => {
         const id = parseInt(btn.dataset.id, 10);
         this.eliminarNovedad(id);
+      });
+    });
+
+    this.container.querySelectorAll(".btn-reactivar-nov").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = parseInt(btn.dataset.id, 10);
+        this.reactivarNovedad(id);
       });
     });
   }
@@ -681,7 +717,10 @@ export class NovedadesView {
       }
 
       const idx = this.store.novedades.findIndex(n => n.id === id);
-      if (idx !== -1) this.store.novedades.splice(idx, 1);
+      if (idx !== -1) {
+        this.store.novedades[idx].activo = false;
+        this.store.novedades[idx].updated_at = ahoraIso;
+      }
 
       await this.store.auditar('novedades', 'ELIMINACIÓN / BAJA', id, nov, null);
       this.store.guardarCacheLocal();
@@ -689,6 +728,43 @@ export class NovedadesView {
       alert("Novedad dada de baja con éxito.");
     } catch (err) {
       alert(`Error al eliminar la novedad: ${err.message}`);
+    }
+  }
+
+  async reactivarNovedad(id) {
+    if (!this.store.tienePermiso('novedades', 'editar')) {
+      alert("No tenés permisos para reactivar novedades.");
+      return;
+    }
+
+    const nov = this.store.novedades.find(n => n.id === id);
+    if (!nov) return;
+
+    if (!confirm(`¿Estás seguro de reactivar la novedad #${id} (${nov.motivo} - ${nov.legajo})?`)) {
+      return;
+    }
+
+    const client = getSupabaseClient();
+    const ahoraIso = new Date().toISOString();
+
+    try {
+      const { data, error } = await client
+        .from('novedades')
+        .update({ activo: true, sync_status: 'synced', updated_at: ahoraIso })
+        .eq('id', id)
+        .select();
+
+      if (error) throw error;
+
+      nov.activo = true;
+      nov.updated_at = ahoraIso;
+
+      await this.store.auditar('novedades', 'REACTIVACIÓN', id, { activo: false }, { activo: true });
+      this.store.guardarCacheLocal();
+      this.renderTablaOCards();
+      alert("Novedad reactivada con éxito.");
+    } catch (err) {
+      alert(`Error al reactivar la novedad: ${err.message}`);
     }
   }
 
