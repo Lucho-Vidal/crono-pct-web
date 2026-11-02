@@ -19,6 +19,10 @@ export class SabanaView {
 
     this.celdasSeleccionadas = new Set(); // Set de "legajo|fechaISO"
     this.isDragging = false;
+    this.dragStartLegajo = null;
+    this.dragStartFecha = null;
+    this.lastSelectedKey = null;
+    this.touchStartCell = null;
 
     this.init();
   }
@@ -254,12 +258,14 @@ export class SabanaView {
             ${dias.map(d => {
               const celda = calcularCelda(leg, d.iso, this.store);
               const isSelected = this.celdasSeleccionadas.has(`${leg}|${d.iso}`);
+              const novId = celda.novedad ? celda.novedad.id : '';
               return `
                 <td class="celda-sabana ${isSelected ? 'selected' : ''}" 
                     data-legajo="${leg}" 
                     data-fecha="${d.iso}"
+                    data-novedad-id="${novId}"
                     style="background-color: ${celda.bg}; color: #0f172a;"
-                    title="${ag.apellido}: ${d.iso} - ${celda.texto || 'Sin asignar'}">
+                    title="${ag.apellido}: ${d.iso} - ${celda.texto || 'Sin asignar'}${celda.novedad ? ' (Doble clic para editar novedad)' : ''}">
                   ${celda.texto || ''}
                 </td>
               `;
@@ -367,6 +373,16 @@ export class SabanaView {
         this.renderTabla();
       });
     }
+
+    // Finalizar arrastre de selección en cualquier parte de la ventana
+    window.addEventListener("mouseup", () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        this.dragStartLegajo = null;
+        this.dragStartFecha = null;
+        this.actualizarContadorSeleccion();
+      }
+    });
   }
 
   poblarChecksFiltroAvanzado() {
@@ -448,14 +464,52 @@ export class SabanaView {
     }, 100);
   }
 
+  seleccionarRangoEnFila(row, fStart, fEnd, mantenerPrevios = false) {
+    if (!row) return;
+    const f1 = fStart < fEnd ? fStart : fEnd;
+    const f2 = fStart < fEnd ? fEnd : fStart;
+    const leg = this.dragStartLegajo || row.querySelector('.celda-sabana')?.dataset.legajo;
+    if (!leg) return;
+
+    if (!mantenerPrevios) {
+      this.celdasSeleccionadas.clear();
+      this.container.querySelectorAll(".celda-sabana.selected").forEach(el => el.classList.remove("selected"));
+    }
+
+    const celdasFila = row.querySelectorAll('.celda-sabana');
+    celdasFila.forEach(rc => {
+      const rf = rc.dataset.fecha;
+      if (rf >= f1 && rf <= f2) {
+        this.celdasSeleccionadas.add(`${leg}|${rf}`);
+        rc.classList.add('selected');
+      }
+    });
+  }
+
   attachCellEvents() {
     const celdas = this.container.querySelectorAll(".celda-sabana");
 
     celdas.forEach(c => {
-      // Click simple / toque
-      c.addEventListener("click", (e) => {
-        const key = `${c.dataset.legajo}|${c.dataset.fecha}`;
-        if (e.shiftKey || e.ctrlKey) {
+      // 1. Mousedown: Inicia selección o arrastre
+      c.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return; // Solo clic izquierdo principal
+        const leg = c.dataset.legajo;
+        const fec = c.dataset.fecha;
+        const key = `${leg}|${fec}`;
+
+        this.isDragging = true;
+        this.dragStartLegajo = leg;
+        this.dragStartFecha = fec;
+
+        if (e.shiftKey && this.lastSelectedKey) {
+          const [lastLeg, lastFec] = this.lastSelectedKey.split('|');
+          if (lastLeg === leg) {
+            this.seleccionarRangoEnFila(c.closest('tr'), lastFec, fec, e.ctrlKey);
+          } else {
+            this.celdasSeleccionadas.add(key);
+            c.classList.add("selected");
+          }
+        } else if (e.ctrlKey) {
           if (this.celdasSeleccionadas.has(key)) {
             this.celdasSeleccionadas.delete(key);
             c.classList.remove("selected");
@@ -464,31 +518,108 @@ export class SabanaView {
             c.classList.add("selected");
           }
         } else {
-          // Deseleccionar previas o toggle
           this.celdasSeleccionadas.clear();
           this.container.querySelectorAll(".celda-sabana.selected").forEach(el => el.classList.remove("selected"));
           this.celdasSeleccionadas.add(key);
           c.classList.add("selected");
         }
+
+        this.lastSelectedKey = key;
         this.actualizarContadorSeleccion();
       });
 
-      // Doble click para abrir diálogo de novedad
-      c.addEventListener("dblclick", () => {
+      // 2. Mouseenter: Arrastre interactivo en la fila del agente
+      c.addEventListener("mouseenter", (e) => {
+        if (!this.isDragging || !this.dragStartLegajo) return;
+
         const leg = c.dataset.legajo;
         const fec = c.dataset.fecha;
-        this.abrirModalNovedad(leg, fec, fec);
+
+        if (leg === this.dragStartLegajo) {
+          const row = c.closest('tr');
+          if (row) {
+            this.seleccionarRangoEnFila(row, this.dragStartFecha, fec, false);
+          }
+        }
+        this.actualizarContadorSeleccion();
+      });
+
+      // 3. Touch Support para móviles y tablets
+      c.addEventListener("touchstart", (e) => {
+        const leg = c.dataset.legajo;
+        const fec = c.dataset.fecha;
+        this.touchStartCell = { leg, fec, el: c };
+      }, { passive: true });
+
+      c.addEventListener("touchmove", (e) => {
+        if (!this.touchStartCell) return;
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (target && target.classList.contains("celda-sabana") && target.dataset.legajo === this.touchStartCell.leg) {
+          const row = target.closest('tr');
+          if (row) {
+            this.seleccionarRangoEnFila(row, this.touchStartCell.fec, target.dataset.fecha, false);
+            this.actualizarContadorSeleccion();
+          }
+        }
+      }, { passive: true });
+
+      c.addEventListener("touchend", () => {
+        this.touchStartCell = null;
+      }, { passive: true });
+
+      // 4. Doble click / doble toque: Abrir edición si tiene novedad o alta si está libre
+      c.addEventListener("dblclick", () => {
+        this.abrirModalNovedadDesdeCelda(c);
       });
     });
   }
 
+  abrirModalNovedadDesdeCelda(celdaEl) {
+    if (!celdaEl) return;
+    const leg = celdaEl.dataset.legajo;
+    const fec = celdaEl.dataset.fecha;
+    const novId = celdaEl.dataset.novedadId;
+
+    if (novId) {
+      const nov = this.store.novedades.find(n => String(n.id) === String(novId));
+      if (nov) {
+        if (this.onOpenNovedadModal) {
+          this.onOpenNovedadModal(nov);
+        }
+        return;
+      }
+    }
+
+    // Búsqueda de respaldo por fecha y legajo
+    const novExistente = this.store.novedades.find(n => 
+      n.activo !== false && 
+      String(n.legajo).trim() === String(leg).trim() && 
+      n.fecha_inicio <= fec && 
+      n.fecha_fin >= fec
+    );
+
+    if (novExistente) {
+      if (this.onOpenNovedadModal) {
+        this.onOpenNovedadModal(novExistente);
+      }
+      return;
+    }
+
+    this.abrirModalNovedad(leg, fec, fec);
+  }
+
   actualizarContadorSeleccion() {
     const lbl = this.container.querySelector("#sabana-lbl-contador");
-    if (!lbl) return;
+    const btnCargar = this.container.querySelector("#btn-sabana-cargar-novedad");
 
     const total = this.celdasSeleccionadas.size;
     if (total === 0) {
-      lbl.textContent = "📌 Selección: 0 días";
+      if (lbl) lbl.textContent = "📌 Selección: 0 días";
+      if (btnCargar) {
+        btnCargar.textContent = "➕ Cargar Novedad";
+        btnCargar.title = "Cargar novedad";
+      }
       return;
     }
 
@@ -501,13 +632,59 @@ export class SabanaView {
       fechas.add(fec);
     });
 
-    lbl.textContent = `📌 Selección: ${total} días (${agentes.size} ag. × ${fechas.size} fechas)`;
+    if (lbl) {
+      lbl.textContent = `📌 Selección: ${total} días (${agentes.size} ag. × ${fechas.size} fechas)`;
+    }
+
+    if (btnCargar) {
+      if (total === 1) {
+        const key = Array.from(this.celdasSeleccionadas)[0];
+        const [leg, fec] = key.split('|');
+        const celdaEl = this.container.querySelector(`.celda-sabana[data-legajo="${leg}"][data-fecha="${fec}"]`);
+        if (celdaEl && (celdaEl.dataset.novedadId || this.obtenerNovedadDeCelda(leg, fec))) {
+          btnCargar.textContent = "✏️ Editar Novedad";
+          btnCargar.title = "Editar la novedad de la celda seleccionada";
+        } else {
+          btnCargar.textContent = "➕ Cargar Novedad";
+          btnCargar.title = "Cargar novedad para el día seleccionado";
+        }
+      } else {
+        btnCargar.textContent = "➕ Cargar Novedad";
+        btnCargar.title = "Cargar novedad para el rango seleccionado";
+      }
+    }
+  }
+
+  obtenerNovedadDeCelda(legajo, fecha) {
+    return this.store.novedades.find(n => 
+      n.activo !== false && 
+      String(n.legajo).trim() === String(legajo).trim() && 
+      n.fecha_inicio <= fecha && 
+      n.fecha_fin >= fecha
+    );
   }
 
   abrirModalNovedadDesdeSeleccion() {
     if (this.celdasSeleccionadas.size === 0) {
       alert("Seleccioná al menos una celda en la Sábana para cargar una novedad.");
       return;
+    }
+
+    // Si exactamente 1 celda está seleccionada y tiene una novedad cargada, abrirla para edición
+    if (this.celdasSeleccionadas.size === 1) {
+      const key = Array.from(this.celdasSeleccionadas)[0];
+      const [leg, fec] = key.split('|');
+      const celdaEl = this.container.querySelector(`.celda-sabana[data-legajo="${leg}"][data-fecha="${fec}"]`);
+      if (celdaEl) {
+        const nov = (celdaEl.dataset.novedadId ? this.store.novedades.find(n => String(n.id) === String(celdaEl.dataset.novedadId)) : null)
+          || this.obtenerNovedadDeCelda(leg, fec);
+        if (nov) {
+          if (this.onOpenNovedadModal) {
+            this.onOpenNovedadModal(nov);
+          }
+          return;
+        }
+      }
     }
 
     const items = Array.from(this.celdasSeleccionadas).map(k => {
@@ -528,7 +705,8 @@ export class SabanaView {
       this.onOpenNovedadModal({
         legajo: legajo,
         fecha_inicio: fIni,
-        fecha_fin: fFin
+        fecha_fin: fFin,
+        esNuevo: true
       });
     }
   }

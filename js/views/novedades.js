@@ -401,8 +401,12 @@ export class NovedadesView {
     });
   }
 
-  abrirModalCRUD(novedad) {
-    if (!this.store.tienePermiso('novedades', novedad ? 'editar' : 'crear')) {
+  abrirModalCRUD(novedad = null, datosIniciales = null) {
+    // Si viene un objeto de precarga sin ID (ej: desde Sábana), es una creación con datos iniciales
+    const esEdicion = Boolean(novedad && novedad.id);
+    const prefill = esEdicion ? null : (datosIniciales || (novedad && !novedad.id ? novedad : null));
+
+    if (!this.store.tienePermiso('novedades', esEdicion ? 'editar' : 'crear')) {
       alert("No tenés permisos para realizar esta operación.");
       return;
     }
@@ -416,7 +420,7 @@ export class NovedadesView {
       return;
     }
 
-    this.novedadEnEdicion = novedad;
+    this.novedadEnEdicion = esEdicion ? novedad : null;
     const modal = this.container.querySelector("#modal-crud-novedad");
     const titulo = this.container.querySelector("#modal-novedad-titulo");
 
@@ -454,7 +458,7 @@ export class NovedadesView {
       <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre}</option>
     `).join('');
 
-    if (novedad) {
+    if (esEdicion) {
       titulo.textContent = `Editar Novedad #${novedad.id}`;
       selLeg.value = novedad.legajo;
       selLeg.disabled = true;
@@ -485,10 +489,18 @@ export class NovedadesView {
     } else {
       titulo.textContent = "Cargar Nueva Novedad";
       selLeg.disabled = false;
-      selLeg.value = "";
       const hoyIso = new Date().toISOString().split('T')[0];
-      inpIni.value = hoyIso;
-      inpFin.value = hoyIso;
+
+      if (prefill) {
+        selLeg.value = prefill.legajo || "";
+        inpIni.value = prefill.fecha_inicio ? parseFechaISO(prefill.fecha_inicio) : hoyIso;
+        inpFin.value = prefill.fecha_fin ? parseFechaISO(prefill.fecha_fin) : hoyIso;
+      } else {
+        selLeg.value = "";
+        inpIni.value = hoyIso;
+        inpFin.value = hoyIso;
+      }
+
       selMot.selectedIndex = 0;
       inpMotOtro.style.display = "none";
       inpMotOtro.value = "";
@@ -575,10 +587,10 @@ export class NovedadesView {
       fecha_inicio: fIni,
       fecha_fin: fFin,
       motivo: motivo,
-      tipo_color: selTipo.value,
-      color_hex: inpColor.value,
-      codigo_sap_temporal: codigoSapTemporal,
-      legajo_reemplazado: selLegReemp.value || null,
+      tipo_color: selTipo.value || 'licencia',
+      color_hex: inpColor.value || '#ffff00',
+      codigo_sap_temporal: codigoSapTemporal || null,
+      legajo_reemplazado: selLegReemp.value ? selLegReemp.value.trim() : null,
       observaciones: txtObs.value.trim() || null,
       activo: true,
       sync_status: 'synced',
@@ -586,7 +598,7 @@ export class NovedadesView {
     };
 
     try {
-      if (this.novedadEnEdicion) {
+      if (this.novedadEnEdicion && this.novedadEnEdicion.id) {
         // UPDATE
         const { data, error } = await client
           .from('novedades')

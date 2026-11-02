@@ -759,7 +759,11 @@ class AppController {
     this.sabanaView = new SabanaView(cSabana, this.store, (datos) => {
       this.cambiarVista('novedades');
       if (this.novedadesView) {
-        this.novedadesView.abrirModalCRUD(datos);
+        if (datos && datos.id) {
+          this.novedadesView.abrirModalCRUD(datos);
+        } else {
+          this.novedadesView.abrirModalCRUD(null, datos);
+        }
       }
     });
 
