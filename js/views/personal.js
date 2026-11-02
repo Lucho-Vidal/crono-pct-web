@@ -194,7 +194,11 @@ export class PersonalView {
         const ape = String(p.apellido || "").toLowerCase();
         const nom = String(p.nombre || "").toLowerCase();
         const cuil = String(p.cuil || "").toLowerCase();
-        return leg.includes(q) || ape.includes(q) || nom.includes(q) || cuil.includes(q);
+        const dom = String(p.domicilio || "").toLowerCase();
+        const loc = String(p.localidad || "").toLowerCase();
+        const cel = String(p.celular || "").toLowerCase();
+        const mail = String(p.mail || "").toLowerCase();
+        return leg.includes(q) || ape.includes(q) || nom.includes(q) || cuil.includes(q) || dom.includes(q) || loc.includes(q) || cel.includes(q) || mail.includes(q);
       });
     }
 
@@ -251,11 +255,15 @@ export class PersonalView {
             <th class="sortable" data-col="categoria">Categoría ${this.renderFlecha("categoria")}</th>
             <th class="sortable" data-col="sector_actual">Sector ${this.renderFlecha("sector_actual")}</th>
             <th class="sortable" data-col="grupo_sap_actual">Grupo SAP ${this.renderFlecha("grupo_sap_actual")}</th>
+            <th class="sortable" data-col="domicilio">Dirección ${this.renderFlecha("domicilio")}</th>
+            <th class="sortable" data-col="localidad">Localidad ${this.renderFlecha("localidad")}</th>
             <th class="sortable" data-col="ingreso_pct">Ingreso PCT ${this.renderFlecha("ingreso_pct")}</th>
+            <th class="sortable" data-col="ingreso_empresa">Ingreso Empresa ${this.renderFlecha("ingreso_empresa")}</th>
+            <th class="sortable" data-col="fecha_nacimiento">Fecha Nac. ${this.renderFlecha("fecha_nacimiento")}</th>
             <th>Celular</th>
+            <th>Tel. Emergencia</th>
             <th>CUIL</th>
             <th>Email</th>
-            <th>Localidad</th>
             <th style="text-align: center;">Estado</th>
             <th style="text-align: center;">Acciones</th>
           </tr>
@@ -264,7 +272,7 @@ export class PersonalView {
     `;
 
     if (lista.length === 0) {
-      html += `<tr><td colspan="12" style="text-align: center; padding: 30px; color: var(--text-muted);">No se encontraron agentes con los filtros indicados.</td></tr>`;
+      html += `<tr><td colspan="16" style="text-align: center; padding: 30px; color: var(--text-muted);">No se encontraron agentes con los filtros indicados.</td></tr>`;
     } else {
       lista.forEach(p => {
         const leg = String(p.legajo).trim();
@@ -276,11 +284,15 @@ export class PersonalView {
             <td>${p.categoria || '—'}</td>
             <td>${p.sector_actual || '—'}</td>
             <td><b>${p.grupo_sap_actual || '—'}</b></td>
-            <td>${p.ingreso_pct || '—'}</td>
+            <td>${p.domicilio || '—'}</td>
+            <td>${p.localidad || '—'}</td>
+            <td>${p.ingreso_pct ? parseFechaISO(p.ingreso_pct) : '—'}</td>
+            <td>${p.ingreso_empresa ? parseFechaISO(p.ingreso_empresa) : '—'}</td>
+            <td>${p.fecha_nacimiento ? parseFechaISO(p.fecha_nacimiento) : '—'}</td>
             <td>${p.celular || '—'}</td>
+            <td>${p.telefono_emergencia || '—'}</td>
             <td>${p.cuil || '—'}</td>
             <td>${p.mail || '—'}</td>
-            <td>${p.localidad || '—'}</td>
             <td style="text-align: center;">
               <span class="brand-badge" style="background-color: ${activo ? '#16a34a' : '#94a3b8'};">
                 ${activo ? 'ACTIVO' : 'INACTIVO'}

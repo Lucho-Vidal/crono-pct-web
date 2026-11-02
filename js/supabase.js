@@ -574,7 +574,7 @@ export class WebDataStore {
   async sincronizar() {
     const client = getSupabaseClient();
     try {
-      // Descarga de las 11 tablas en paralelo
+      // Descarga de las 11 tablas en paralelo (hasta 5000 filas por consulta)
       const [
         resPersonal,
         resTurnos,
@@ -588,24 +588,29 @@ export class WebDataStore {
         resUsuarios,
         resHistorial
       ] = await Promise.all([
-        client.from('personal').select('*').order('orden_sabana', { ascending: true }),
-        client.from('turnos_sap').select('*'),
-        client.from('novedades').select('*').order('id', { ascending: false }),
-        client.from('saldos_licencias').select('*'),
-        client.from('periodos_licencias').select('*').order('periodo', { ascending: true }),
-        client.from('catalogo_opciones').select('*').order('orden', { ascending: true }),
-        client.from('sectores_app').select('*').order('orden', { ascending: true }),
-        client.from('categorias_personal').select('*').order('orden', { ascending: true }),
-        client.from('roles_app').select('*'),
-        client.from('usuarios_app').select('*'),
-        client.from('historial_asignaciones').select('*').order('id', { ascending: true })
+        client.from('personal').select('*').range(0, 4999).order('orden_sabana', { ascending: true }),
+        client.from('turnos_sap').select('*').range(0, 4999),
+        client.from('novedades').select('*').range(0, 4999).order('id', { ascending: false }),
+        client.from('saldos_licencias').select('*').range(0, 4999),
+        client.from('periodos_licencias').select('*').range(0, 4999).order('periodo', { ascending: true }),
+        client.from('catalogo_opciones').select('*').range(0, 4999).order('orden', { ascending: true }),
+        client.from('sectores_app').select('*').range(0, 4999).order('orden', { ascending: true }),
+        client.from('categorias_personal').select('*').range(0, 4999).order('orden', { ascending: true }),
+        client.from('roles_app').select('*').range(0, 4999),
+        client.from('usuarios_app').select('*').range(0, 4999),
+        client.from('historial_asignaciones').select('*').range(0, 4999).order('id', { ascending: true })
       ]);
 
+      if (resNovedades.error) console.error("Error sincronizando novedades desde Supabase:", resNovedades.error);
+      if (resPersonal.error) console.error("Error sincronizando personal desde Supabase:", resPersonal.error);
+      if (resTurnos.error) console.error("Error sincronizando turnos desde Supabase:", resTurnos.error);
+      if (resSaldos.error) console.error("Error sincronizando saldos desde Supabase:", resSaldos.error);
+
       const dataSnapshot = {
-        personal: resPersonal.data || [],
-        turnos: resTurnos.data || [],
-        novedades: resNovedades.data || [],
-        saldos: resSaldos.data || [],
+        personal: resPersonal.data || (resPersonal.error ? this.personal : []),
+        turnos: resTurnos.data || (resTurnos.error ? Array.from(this.turnos.values()) : []),
+        novedades: resNovedades.data || (resNovedades.error ? this.novedades : []),
+        saldos: resSaldos.data || (resSaldos.error ? this.saldos : []),
         periodos: (resPeriodos.data || []).map(p => p.periodo),
         catalogo_motivos: resCatalogo.data || [],
         sectores: (resSectores.data || []).filter(s => s.activo).map(s => s.nombre),

@@ -146,7 +146,7 @@ export function extraerCodigoSapDeTexto(texto, store) {
 
 export function extraerCodigoSapDeNovedad(nov, store) {
   if (!nov) return "";
-  const codTemp = String(nov.codigo_sap_temporal || "").trim();
+  const codTemp = String(nov.codigo_sap_temporal || nov.cobertura_sap || "").trim();
   if (codTemp) return codTemp;
   return extraerCodigoSapDeTexto(nov.motivo, store);
 }
@@ -158,7 +158,7 @@ export function calcularCelda(legajo, fechaStr, store) {
 
   // Buscar novedades activas del legajo en esta fecha
   const novs = store.novedades.filter(n => {
-    if (!n.activo) return false;
+    if (n.activo === false || n.activo === 0) return false;
     if (String(n.legajo).trim() !== l) return false;
     const ini = parseFechaISO(n.fecha_inicio);
     const fin = parseFechaISO(n.fecha_fin);
