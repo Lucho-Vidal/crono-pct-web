@@ -50,13 +50,15 @@ body {
 }
 
 /* Header & Top Bar */
-.top-header {
+.top-header,
+header {
   background-color: var(--bg-dark);
   color: white;
-  padding: 10px 16px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -66,7 +68,8 @@ body {
 .brand-section {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .brand-logo {
@@ -93,7 +96,9 @@ body {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .btn-icon {
@@ -109,6 +114,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .btn-icon:hover {
@@ -116,15 +122,33 @@ body {
   color: white;
 }
 
-.user-badge {
+/* Evitar que el bloque del usuario rompa el diseño si el nombre es largo */
+.user-badge,
+.user-info-container,
+header .user-info-container {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 4px 8px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 20px;
   font-size: 12px;
   color: #e2e8f0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.user-badge #header-user-name,
+.user-info-container span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  min-width: 0;
 }
 
 .status-dot {
@@ -365,24 +389,58 @@ textarea:focus {
   gap: 4px;
 }
 
-/* Leyenda y Acceso Rápido Formatos */
-.leyenda-row {
+/* 2. Optimizar la barra de Acceso Rápido para que haga scroll horizontal fluido */
+.leyenda-row,
+.accesos-rapidos,
+.quick-access {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: 6px;
   margin-top: 8px;
   padding-top: 8px;
+  padding-bottom: 4px;
   border-top: 1px solid var(--border-light);
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.leyenda-row::-webkit-scrollbar,
+.accesos-rapidos::-webkit-scrollbar,
+.quick-access::-webkit-scrollbar {
+  height: 4px;
+}
+
+.leyenda-row::-webkit-scrollbar-thumb,
+.accesos-rapidos::-webkit-scrollbar-thumb,
+.quick-access::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
 .btn-acceso-rapido {
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 4px 10px;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 700;
   border: 1px solid #94a3b8;
   cursor: pointer;
+}
+
+.badge-contador-seleccion {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 3. Hacer la tabla de la Sábana más compacta y legible en celulares */
+.sabana-table th,
+.sabana-table td {
+  padding: 6px 4px;
+  font-size: 12px;
 }
 
 /* Grillas y Tablas Responsivas */
@@ -450,6 +508,45 @@ table.data-table thead th {
 }
 
 @media (max-width: 768px) {
+  .top-header,
+  header {
+    padding: 8px 10px;
+  }
+
+  .brand-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .brand-title {
+    font-size: 15px;
+  }
+
+  .btn-icon {
+    min-width: 38px;
+    min-height: 38px;
+    padding: 4px;
+    font-size: 16px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .user-badge,
+  .user-info-container {
+    max-width: 42%;
+    padding: 3px 6px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .sabana-table th,
+  .sabana-table td {
+    padding: 5px 2px;
+    font-size: 11px;
+  }
+
   .sticky-col-1 {
     width: 52px;
     min-width: 52px;
@@ -654,8 +751,81 @@ thead th.sticky-col-2 {
 }
 
 @media (max-width: 480px) {
+  .top-header,
+  header {
+    padding: 6px 8px;
+  }
+
+  .brand-section {
+    gap: 6px;
+  }
+
+  .brand-logo {
+    width: 24px;
+    height: 24px;
+  }
+
+  .brand-title {
+    font-size: 13px;
+    letter-spacing: 0;
+  }
+
+  .btn-icon {
+    min-width: 34px;
+    min-height: 34px;
+    font-size: 15px;
+  }
+
+  .header-actions {
+    gap: 3px;
+  }
+
+  .user-badge,
+  .user-info-container {
+    max-width: 38%;
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  .sabana-table th,
+  .sabana-table td {
+    padding: 4px 1px;
+    font-size: 11px;
+  }
+
+  .table-container {
+    max-height: calc(100vh - 190px);
+    border-radius: 6px;
+  }
+
   .form-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 360px) {
+  .top-header,
+  header {
+    padding: 5px 6px;
+  }
+
+  .brand-title {
+    display: none;
+  }
+
+  .btn-icon {
+    min-width: 30px;
+    min-height: 30px;
+    font-size: 14px;
+  }
+
+  .user-badge,
+  .user-info-container {
+    max-width: 105px;
+  }
+
+  #header-user-role {
+    display: none;
   }
 }
 

@@ -61,7 +61,7 @@ export class SabanaView {
           </div>
         </div>
 
-        <div class="leyenda-row" id="sabana-leyenda-container">
+        <div class="leyenda-row accesos-rapidos quick-access" id="sabana-leyenda-container">
           <!-- Botones de leyenda y píldora de selección -->
         </div>
       </div>
@@ -226,7 +226,7 @@ export class SabanaView {
     const agentes = this.obtenerAgentesFiltrados();
 
     let html = `
-      <table class="data-table">
+      <table class="data-table sabana-table">
         <thead>
           <!-- Fila 1: Días de la semana -->
           <tr>
