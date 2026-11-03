@@ -633,6 +633,18 @@ export class WebDataStore {
     }
   }
 
+  // RBAC: Verificación si el rol actual es Administrador Total
+  esAdmin() {
+    const session = getSession();
+    if (!session) return false;
+    const rolNombre = session.rol || 'CONSULTA';
+    if (rolNombre === 'ADMIN') return true;
+
+    const rInfo = this.roles.get(rolNombre);
+    if (!rInfo) return false;
+    return Boolean(rInfo.es_admin_total);
+  }
+
   // RBAC: Verificación de Permisos
   tienePermiso(modulo, accion) {
     const session = getSession();

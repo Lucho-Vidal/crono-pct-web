@@ -500,7 +500,7 @@ class AppController {
     const abrir = () => {
       // Bloqueo estricto: solo administradores
       const session = getSession();
-      const esAdmin = session && (session.rol === 'ADMIN' || this.store.esAdmin());
+      const esAdmin = Boolean(session && (session.rol === 'ADMIN' || (typeof this.store?.esAdmin === 'function' && this.store.esAdmin())));
       if (!esAdmin && session) {
         alert("Acceso Restringido: La configuración de conexión a Supabase es exclusiva para Administradores.");
         return;
@@ -522,7 +522,7 @@ class AppController {
     if (btnGuardar) {
       btnGuardar.addEventListener('click', () => {
         const session = getSession();
-        const esAdmin = session && (session.rol === 'ADMIN' || this.store.esAdmin());
+        const esAdmin = Boolean(session && (session.rol === 'ADMIN' || (typeof this.store?.esAdmin === 'function' && this.store.esAdmin())));
         if (!esAdmin && session) {
           alert("Operación denegada: Sólo un Administrador puede modificar los parámetros de conexión.");
           return;
@@ -792,7 +792,7 @@ class AppController {
 
     // Solo mostrar el botón de configuración si es Administrador
     if (btnCfg) {
-      const esAdmin = (user.rol === 'ADMIN' || this.store.esAdmin());
+      const esAdmin = Boolean(user && (user.rol === 'ADMIN' || (typeof this.store?.esAdmin === 'function' && this.store.esAdmin())));
       btnCfg.style.display = esAdmin ? 'inline-flex' : 'none';
     }
   }
