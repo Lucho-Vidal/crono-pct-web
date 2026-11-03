@@ -62,8 +62,10 @@ export class LicenciasView {
             <button class="btn-icon" id="btn-cerrar-modal-la">✖</button>
           </div>
           <div class="modal-body">
+            <!-- Selector de Agente con Buscador -->
             <div class="form-group">
               <label>Agente / Personal:</label>
+              <input type="text" id="la-form-buscar-legajo" placeholder="🔍 Filtrar agente (legajo o apellido)..." style="margin-bottom: 6px; font-size: 13px;">
               <select id="la-form-legajo" required>
                 <option value="">-- Seleccionar Agente --</option>
                 ${this.store.personal.filter(p => p.activo !== false).map(p => `
@@ -73,7 +75,7 @@ export class LicenciasView {
             </div>
 
             <!-- Resumen de saldos del agente -->
-            <div id="la-resumen-saldos-agente" style="background-color: #f1f5f9; padding: 10px; border-radius: 6px; border: 1px solid var(--border-light); font-size: 12px;">
+            <div id="la-resumen-saldos-agente" style="background-color: #f1f5f9; padding: 10px; border-radius: 6px; border: 1px solid var(--border-light); font-size: 12px; margin-bottom: 12px;">
               Seleccioná un agente para ver sus períodos y días disponibles.
             </div>
 
@@ -83,19 +85,24 @@ export class LicenciasView {
                 <input type="date" id="la-form-inicio" required>
               </div>
               <div class="form-group">
-                <label>Fecha Fin:</label>
-                <input type="date" id="la-form-fin" required>
+                <label>Cantidad de Días (Semanas completas):</label>
+                <input type="number" id="la-form-dias" min="7" step="7" value="14" required>
+                <small id="la-error-dias" style="color: #dc2626; font-size: 11px; font-weight: 600; display: none; margin-top: 4px;">
+                  ⚠️ La cantidad de días debe ser múltiplo de 7 (ej: 7, 14, 21, 28, etc.).
+                </small>
               </div>
             </div>
 
-            <div class="form-group">
-              <label>Cantidad de Días a Descontar:</label>
-              <input type="number" id="la-form-dias" min="1" value="14" required>
-            </div>
-
-            <div class="form-group">
-              <label>Fecha de Reincorporación:</label>
-              <input type="date" id="la-form-vuelve">
+            <!-- Fechas Calculadas Automáticamente (No Editables) -->
+            <div class="form-row" style="background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border-light); margin-bottom: 12px;">
+              <div class="form-group">
+                <label style="font-size: 11px; color: #64748b; font-weight: 700;">📅 Fecha Fin (Automática: Inicio + Días - 1):</label>
+                <input type="date" id="la-form-fin" readonly style="background-color: #f1f5f9; cursor: not-allowed; font-weight: 700; color: #1e293b;">
+              </div>
+              <div class="form-group">
+                <label style="font-size: 11px; color: #64748b; font-weight: 700;">🔄 Fecha Reincorporación (Fin + 1 día):</label>
+                <input type="date" id="la-form-vuelve" readonly style="background-color: #f1f5f9; cursor: not-allowed; font-weight: 700; color: #1e293b;">
+              </div>
             </div>
 
             <div class="form-group">
@@ -144,6 +151,7 @@ export class LicenciasView {
     const inpIni = this.container.querySelector("#la-form-inicio");
     const inpFin = this.container.querySelector("#la-form-fin");
     const inpDias = this.container.querySelector("#la-form-dias");
+    const inpVuelve = this.container.querySelector("#la-form-vuelve");
 
     const cerrar = () => modalLA.classList.remove("active");
     if (btnCerrar) btnCerrar.addEventListener("click", cerrar);
@@ -154,19 +162,61 @@ export class LicenciasView {
       selAgente.addEventListener("change", () => this.actualizarResumenSaldosAgente());
     }
 
-    // Auto-cálculo de días al cambiar fechas
-    const recalcularDias = () => {
+    // Auto-cálculo y validación estricta de días múltiplo de 7
+    this.recalcularFechasLA = () => {
       const f1 = inpIni.value;
-      const f2 = inpFin.value;
-      if (f1 && f2 && f2 >= f1) {
-        const d1 = new Date(f1);
-        const d2 = new Date(f2);
-        const cant = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
-        inpDias.value = cant;
+      const dias = parseInt(inpDias.value, 10) || 0;
+      const errDias = this.container.querySelector("#la-error-dias");
+
+      if (dias <= 0 || dias % 7 !== 0) {
+        if (errDias) errDias.style.display = "block";
+        inpDias.style.borderColor = "#dc2626";
+        inpFin.value = "";
+        inpVuelve.value = "";
+        if (btnGuardar) btnGuardar.disabled = true;
+        return false;
       }
+
+      if (errDias) errDias.style.display = "none";
+      inpDias.style.borderColor = "";
+      if (btnGuardar) btnGuardar.disabled = false;
+
+      if (f1 && dias > 0) {
+        const [y, m, d] = f1.split('-').map(Number);
+        const dtIni = new Date(y, m - 1, d);
+        const dtFin = new Date(dtIni);
+        dtFin.setDate(dtFin.getDate() + (dias - 1));
+        const dtVuelve = new Date(dtFin);
+        dtVuelve.setDate(dtVuelve.getDate() + 1);
+
+        const pad = (n) => String(n).padStart(2, '0');
+        inpFin.value = `${dtFin.getFullYear()}-${pad(dtFin.getMonth() + 1)}-${pad(dtFin.getDate())}`;
+        inpVuelve.value = `${dtVuelve.getFullYear()}-${pad(dtVuelve.getMonth() + 1)}-${pad(dtVuelve.getDate())}`;
+      }
+      return true;
     };
-    if (inpIni) inpIni.addEventListener("change", recalcularDias);
-    if (inpFin) inpFin.addEventListener("change", recalcularDias);
+
+    if (inpIni) {
+      inpIni.addEventListener("change", () => this.recalcularFechasLA());
+      inpIni.addEventListener("input", () => this.recalcularFechasLA());
+    }
+    if (inpDias) {
+      inpDias.addEventListener("input", () => this.recalcularFechasLA());
+      inpDias.addEventListener("change", () => this.recalcularFechasLA());
+    }
+
+    // Buscador interactivo de agentes en Licencias
+    const inpBuscarAgenteLA = this.container.querySelector("#la-form-buscar-legajo");
+    if (inpBuscarAgenteLA && selAgente) {
+      inpBuscarAgenteLA.addEventListener("input", (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        Array.from(selAgente.options).forEach((opt, idx) => {
+          if (idx === 0) return;
+          const txt = opt.textContent.toLowerCase();
+          opt.style.display = (!q || txt.includes(q)) ? "" : "none";
+        });
+      });
+    }
   }
 
   actualizarBotonesPestanas() {
@@ -285,19 +335,24 @@ export class LicenciasView {
     }
     const modal = this.container.querySelector("#modal-solicitud-la");
     const selAgente = this.container.querySelector("#la-form-legajo");
+    const inpBuscarAgente = this.container.querySelector("#la-form-buscar-legajo");
     const inpIni = this.container.querySelector("#la-form-inicio");
-    const inpFin = this.container.querySelector("#la-form-fin");
     const inpDias = this.container.querySelector("#la-form-dias");
-    const inpVuelve = this.container.querySelector("#la-form-vuelve");
     const inpObs = this.container.querySelector("#la-form-obs");
 
     selAgente.value = "";
+    if (inpBuscarAgente) {
+      inpBuscarAgente.value = "";
+      Array.from(selAgente.options).forEach(opt => opt.style.display = "");
+    }
     const hoyIso = new Date().toISOString().split('T')[0];
     inpIni.value = hoyIso;
-    inpFin.value = hoyIso;
     inpDias.value = "14";
-    inpVuelve.value = "";
     inpObs.value = "";
+
+    if (typeof this.recalcularFechasLA === 'function') {
+      this.recalcularFechasLA();
+    }
 
     this.actualizarResumenSaldosAgente();
     modal.classList.add("active");
@@ -347,8 +402,16 @@ export class LicenciasView {
     const dias = parseInt(inpDias.value, 10) || 0;
 
     if (!leg) { alert("Seleccioná un agente."); return; }
-    if (!fIni || !fFin) { alert("Completá las fechas de inicio y fin."); return; }
-    if (dias <= 0) { alert("La cantidad de días debe ser mayor a 0."); return; }
+    if (!fIni) { alert("Por favor completá la fecha de inicio."); return; }
+    if (dias <= 0 || dias % 7 !== 0) {
+      alert("La cantidad de días debe ser obligatoriamente un múltiplo de 7 (semanas completas: 7, 14, 21, 28, etc.).");
+      inpDias.focus();
+      return;
+    }
+    if (!fFin) {
+      alert("Fecha de fin no calculada. Revisá la fecha de inicio.");
+      return;
+    }
 
     // 1. Imputación FIFO de saldos
     const periodos = [...(this.store.periodos.length > 0 ? this.store.periodos : [2022, 2023, 2024, 2025, 2026])].sort();

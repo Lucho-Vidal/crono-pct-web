@@ -247,7 +247,7 @@ export class PersonalView {
     const lista = this.obtenerAgentesFiltradosYOrdenados();
 
     let html = `
-      <table class="data-table">
+      <table class="data-table personal-table">
         <thead>
           <tr>
             <th class="sticky-col-1 sortable" data-col="legajo">Legajo ${this.renderFlecha("legajo")}</th>
