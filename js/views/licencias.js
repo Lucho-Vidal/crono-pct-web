@@ -1,6 +1,7 @@
 // views/licencias.js - Gestión de Saldos, Diagramador de Vacaciones y Control RRHH
 import { calcularCeldaDiagramador, parseFechaISO } from '../engine_turnos.js';
 import { getSupabaseClient } from '../supabase.js';
+import { habilitarOcultarLegajoEnScroll, ComboboxSelect } from '../combobox.js';
 
 export class LicenciasView {
   constructor(container, store) {
@@ -62,10 +63,9 @@ export class LicenciasView {
             <button class="btn-icon" id="btn-cerrar-modal-la">✖</button>
           </div>
           <div class="modal-body">
-            <!-- Selector de Agente con Buscador -->
+            <!-- Selector de Agente con Buscador Integrado -->
             <div class="form-group">
               <label>Agente / Personal:</label>
-              <input type="text" id="la-form-buscar-legajo" placeholder="🔍 Filtrar agente (legajo o apellido)..." style="margin-bottom: 6px; font-size: 13px;">
               <select id="la-form-legajo" required>
                 <option value="">-- Seleccionar Agente --</option>
                 ${this.store.personal.filter(p => p.activo !== false).map(p => `
@@ -159,6 +159,9 @@ export class LicenciasView {
     if (btnGuardar) btnGuardar.addEventListener("click", () => this.guardarSolicitudLA());
 
     if (selAgente) {
+      this.comboboxAgenteLA = new ComboboxSelect(selAgente, {
+        placeholder: "🔍 Buscar por legajo o apellido..."
+      });
       selAgente.addEventListener("change", () => this.actualizarResumenSaldosAgente());
     }
 
@@ -203,19 +206,6 @@ export class LicenciasView {
     if (inpDias) {
       inpDias.addEventListener("input", () => this.recalcularFechasLA());
       inpDias.addEventListener("change", () => this.recalcularFechasLA());
-    }
-
-    // Buscador interactivo de agentes en Licencias
-    const inpBuscarAgenteLA = this.container.querySelector("#la-form-buscar-legajo");
-    if (inpBuscarAgenteLA && selAgente) {
-      inpBuscarAgenteLA.addEventListener("input", (e) => {
-        const q = e.target.value.trim().toLowerCase();
-        Array.from(selAgente.options).forEach((opt, idx) => {
-          if (idx === 0) return;
-          const txt = opt.textContent.toLowerCase();
-          opt.style.display = (!q || txt.includes(q)) ? "" : "none";
-        });
-      });
     }
   }
 
@@ -274,6 +264,11 @@ export class LicenciasView {
       this.attachRRHHControls(actionsCont);
       this.renderSubVistaRRHH(cont);
     }
+
+    // Habilitar ocultamiento dinámico de legajo en scroll en todas las tablas de licencias
+    cont.querySelectorAll(".table-container").forEach(tc => {
+      habilitarOcultarLegajoEnScroll(tc);
+    });
   }
 
   // --- SUB-VISTA 1: SALDOS DE LICENCIAS ---
@@ -335,15 +330,13 @@ export class LicenciasView {
     }
     const modal = this.container.querySelector("#modal-solicitud-la");
     const selAgente = this.container.querySelector("#la-form-legajo");
-    const inpBuscarAgente = this.container.querySelector("#la-form-buscar-legajo");
     const inpIni = this.container.querySelector("#la-form-inicio");
     const inpDias = this.container.querySelector("#la-form-dias");
     const inpObs = this.container.querySelector("#la-form-obs");
 
     selAgente.value = "";
-    if (inpBuscarAgente) {
-      inpBuscarAgente.value = "";
-      Array.from(selAgente.options).forEach(opt => opt.style.display = "");
+    if (this.comboboxAgenteLA) {
+      this.comboboxAgenteLA.actualizar();
     }
     const hoyIso = new Date().toISOString().split('T')[0];
     inpIni.value = hoyIso;

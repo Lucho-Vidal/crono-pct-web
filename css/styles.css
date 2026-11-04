@@ -584,6 +584,16 @@ table.data-table thead th {
     box-shadow: 2px 0 5px rgba(0, 0, 0, 0.08);
   }
 
+  /* Ocultamiento dinámico de Legajo en scroll horizontal */
+  .table-container.hide-legajo .sticky-col-1 {
+    display: none !important;
+  }
+
+  .table-container.hide-legajo .sticky-col-2 {
+    left: 0 !important;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.15) !important;
+  }
+
   .agente-nom-completo {
     display: none;
   }
@@ -981,4 +991,67 @@ thead th.sticky-col-2,
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* ============================================================
+   Componente Combobox (Selector con Buscador Integrado)
+   ============================================================ */
+.combobox-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.combobox-input {
+  width: 100%;
+  box-sizing: border-box;
+  cursor: text;
+  background-color: #ffffff;
+}
+
+.combobox-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-top: none;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  z-index: 1050;
+  -webkit-overflow-scrolling: touch;
+}
+
+.combobox-dropdown.open {
+  display: block;
+}
+
+.combobox-option {
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text-color, #1e293b);
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  user-select: none;
+}
+
+.combobox-option:last-child {
+  border-bottom: none;
+}
+
+.combobox-option:hover,
+.combobox-option:active {
+  background-color: #f1f5f9;
+  color: var(--primary-color, #2563eb);
+}
+
+.combobox-no-results {
+  padding: 12px;
+  font-size: 13px;
+  color: #94a3b8;
+  text-align: center;
 }

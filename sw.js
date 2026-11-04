@@ -9,6 +9,7 @@ const ASSETS_TO_CACHE = [
   './js/app.js',
   './js/supabase.js',
   './js/engine_turnos.js',
+  './js/combobox.js',
   './js/views/sabana.js',
   './js/views/novedades.js',
   './js/views/personal.js',

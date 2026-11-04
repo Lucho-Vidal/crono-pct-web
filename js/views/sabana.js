@@ -1,6 +1,7 @@
 // views/sabana.js - Vista Principal Sábana de Turnos con Columnas Fijas y Acceso Rápido
 import { calcularCelda, parseFechaISO } from '../engine_turnos.js';
 import { getSupabaseClient } from '../supabase.js';
+import { habilitarOcultarLegajoEnScroll } from '../combobox.js';
 
 export class SabanaView {
   constructor(container, store, onOpenNovedadModal) {
@@ -281,6 +282,7 @@ export class SabanaView {
     `;
 
     tableCont.innerHTML = html;
+    habilitarOcultarLegajoEnScroll(tableCont);
     this.attachCellEvents();
   }
 

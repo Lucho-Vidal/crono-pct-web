@@ -1,6 +1,7 @@
 // views/novedades.js - Explorador CRUD de Novedades con Color y Cobertura SAP
 import { parseFechaISO } from '../engine_turnos.js';
 import { getSupabaseClient } from '../supabase.js';
+import { ComboboxSelect } from '../combobox.js';
 
 export class NovedadesView {
   constructor(container, store, onIrALicencias) {
@@ -83,7 +84,6 @@ export class NovedadesView {
           <div class="modal-body">
             <div class="form-group">
               <label>Agente / Personal:</label>
-              <input type="text" id="nov-buscar-agente" placeholder="🔍 Filtrar agente (legajo o apellido)..." style="margin-bottom: 6px; font-size: 13px;">
               <select id="nov-form-legajo" required>
                 <option value="">-- Seleccionar Agente --</option>
                 ${this.store.personal.filter(p => p.activo !== false).map(p => `
@@ -105,7 +105,6 @@ export class NovedadesView {
 
             <div class="form-group">
               <label>Motivo / Turno SAP:</label>
-              <input type="text" id="nov-buscar-motivo" placeholder="🔍 Filtrar motivo o código SAP..." style="margin-bottom: 6px; font-size: 13px;">
               <select id="nov-form-motivo">
                 <!-- Motivos del catálogo -->
                 ${this.store.catalogo_motivos.map(m => `
@@ -414,33 +413,17 @@ export class NovedadesView {
       });
     }
 
-    // Buscador interactivo de Agente en formulario de novedad
-    const inpBuscarAgente = this.container.querySelector("#nov-buscar-agente");
+    // Selectores con Búsqueda Integrada (Combobox)
     const selFormLeg = this.container.querySelector("#nov-form-legajo");
-    if (inpBuscarAgente && selFormLeg) {
-      inpBuscarAgente.addEventListener("input", (e) => {
-        const q = e.target.value.trim().toLowerCase();
-        Array.from(selFormLeg.options).forEach((opt, idx) => {
-          if (idx === 0) return; // Mantener opción por defecto
-          const txt = opt.textContent.toLowerCase();
-          opt.style.display = (!q || txt.includes(q)) ? "" : "none";
-        });
+    if (selFormLeg) {
+      this.comboboxLegajo = new ComboboxSelect(selFormLeg, {
+        placeholder: "🔍 Buscar por legajo o apellido..."
       });
     }
 
-    // Buscador interactivo de Motivo / Turno SAP en formulario de novedad
-    const inpBuscarMotivo = this.container.querySelector("#nov-buscar-motivo");
-    if (inpBuscarMotivo && selFormMot) {
-      inpBuscarMotivo.addEventListener("input", (e) => {
-        const q = e.target.value.trim().toLowerCase();
-        Array.from(selFormMot.options).forEach(opt => {
-          if (opt.value === "OTRO") {
-            opt.style.display = "";
-            return;
-          }
-          const txt = opt.textContent.toLowerCase();
-          opt.style.display = (!q || txt.includes(q)) ? "" : "none";
-        });
+    if (selFormMot) {
+      this.comboboxMotivo = new ComboboxSelect(selFormMot, {
+        placeholder: "🔍 Buscar motivo o código SAP..."
       });
     }
   }
@@ -503,11 +486,6 @@ export class NovedadesView {
     const selSapTemp = this.container.querySelector("#nov-form-sap-temporal");
     const selLegReemp = this.container.querySelector("#nov-form-legajo-reemplazado");
     const txtObs = this.container.querySelector("#nov-form-obs");
-
-    const inpBuscarAgente = this.container.querySelector("#nov-buscar-agente");
-    const inpBuscarMotivo = this.container.querySelector("#nov-buscar-motivo");
-    if (inpBuscarAgente) inpBuscarAgente.value = "";
-    if (inpBuscarMotivo) inpBuscarMotivo.value = "";
 
     // Repoblar agentes, motivos de catálogo y turnos SAP
     const agentesActivos = this.store.personal.filter(p => p.activo !== false);
@@ -582,6 +560,16 @@ export class NovedadesView {
       prevColor.textContent = "#FFFF00";
       selLegReemp.value = "";
       txtObs.value = "";
+    }
+
+    if (this.comboboxLegajo) {
+      this.comboboxLegajo.actualizar();
+      if (this.comboboxLegajo.inputEl) {
+        this.comboboxLegajo.inputEl.disabled = Boolean(esEdicion);
+      }
+    }
+    if (this.comboboxMotivo) {
+      this.comboboxMotivo.actualizar();
     }
 
     modal.classList.add("active");

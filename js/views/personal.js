@@ -1,6 +1,7 @@
 // views/personal.js - Base de Personal con Selector Oficial de Categorías y Sticky Columns
 import { parseFechaISO } from '../engine_turnos.js';
 import { getSupabaseClient } from '../supabase.js';
+import { habilitarOcultarLegajoEnScroll } from '../combobox.js';
 
 export class PersonalView {
   constructor(container, store) {
@@ -308,6 +309,7 @@ export class PersonalView {
 
     html += `</tbody></table>`;
     tableCont.innerHTML = html;
+    habilitarOcultarLegajoEnScroll(tableCont);
 
     this.attachTableEvents();
   }
