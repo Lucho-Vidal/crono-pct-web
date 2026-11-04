@@ -17,6 +17,12 @@ export class LicenciasView {
     this.filtroTexto = "";
     this.filtroEstadoRRHH = "TODOS"; // "TODOS" | "PENDIENTE" | "ENVIADO"
 
+    // Filtros del Diagramador
+    this.filtroTextoDiag = "";
+    this.filtroSectoresDiag = [];
+    this.filtroGruposDiag = [];
+    this.filtroPersonalDiag = [];
+
     this.celdasDiagSeleccionadas = new Set();
 
     this.init();
@@ -116,6 +122,95 @@ export class LicenciasView {
           </div>
         </div>
       </div>
+
+      <!-- Modal Filtro Avanzado de Diagramador -->
+      <div class="modal-overlay" id="modal-filtro-avanzado-diagramador">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Filtro Avanzado del Diagramador</h3>
+            <button class="btn-icon" id="btn-cerrar-filtro-diag">✖</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>Sectores:</label>
+              <div id="filtro-diag-sectores-checks" style="max-height: 110px; overflow-y: auto; border: 1px solid var(--border-light); padding: 8px; border-radius: 6px;"></div>
+            </div>
+            <div class="form-group">
+              <label>Grupos SAP:</label>
+              <div id="filtro-diag-grupos-checks" style="max-height: 110px; overflow-y: auto; border: 1px solid var(--border-light); padding: 8px; border-radius: 6px;"></div>
+            </div>
+            <div class="form-group">
+              <label>Personal Específico:</label>
+              <input type="text" id="filtro-diag-personal-buscar" placeholder="🔍 Filtrar lista de agentes..." style="margin-bottom: 6px; font-size: 13px;">
+              <div id="filtro-diag-personal-checks" style="max-height: 140px; overflow-y: auto; border: 1px solid var(--border-light); padding: 8px; border-radius: 6px;"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" id="btn-limpiar-filtros-diag">Limpiar Todo</button>
+            <button class="btn btn-primary" id="btn-aplicar-filtros-diag">Aplicar Filtros</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Reserva de Vacaciones (Pre-diagrama) -->
+      <div class="modal-overlay" id="modal-reserva-la">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>📌 Reservar Vacaciones (Pre-diagrama)</h3>
+            <button class="btn-icon" id="btn-cerrar-modal-reserva">✖</button>
+          </div>
+          <div class="modal-body">
+            <div style="background-color: #f5f3ff; border: 1px solid #ddd6fe; color: #5b21b6; padding: 10px; border-radius: 6px; font-size: 12px; margin-bottom: 12px;">
+              ℹ️ La reserva planifica el período en el Diagramador y la Sábana con distintivo <b>PRE</b> sin descontar días del saldo oficial de vacaciones.
+            </div>
+
+            <div class="form-group">
+              <label>Agente / Personal:</label>
+              <select id="reserva-form-legajo" required>
+                <option value="">-- Seleccionar Agente --</option>
+                ${this.store.personal.filter(p => p.activo !== false).map(p => `
+                  <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Fecha Inicio:</label>
+                <input type="date" id="reserva-form-inicio" required>
+              </div>
+              <div class="form-group">
+                <label>Cantidad de Días (Semanas completas):</label>
+                <input type="number" id="reserva-form-dias" min="7" step="7" value="14" required>
+                <small id="reserva-error-dias" style="color: #dc2626; font-size: 11px; font-weight: 600; display: none; margin-top: 4px;">
+                  ⚠️ La cantidad de días debe ser múltiplo de 7 (ej: 7, 14, 21, 28, etc.).
+                </small>
+              </div>
+            </div>
+
+            <!-- Fechas Calculadas Automáticamente (No Editables) -->
+            <div class="form-row" style="background-color: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border-light); margin-bottom: 12px;">
+              <div class="form-group">
+                <label style="font-size: 11px; color: #64748b; font-weight: 700;">📅 Fecha Fin (Automática):</label>
+                <input type="date" id="reserva-form-fin" readonly style="background-color: #f1f5f9; cursor: not-allowed; font-weight: 700; color: #1e293b;">
+              </div>
+              <div class="form-group">
+                <label style="font-size: 11px; color: #64748b; font-weight: 700;">🔄 Fecha Reincorporación (Fin + 1 día):</label>
+                <input type="date" id="reserva-form-vuelve" readonly style="background-color: #f1f5f9; cursor: not-allowed; font-weight: 700; color: #1e293b;">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Observaciones:</label>
+              <input type="text" id="reserva-form-obs" placeholder="Ej: Reserva de verano / Pre-diagrama...">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" id="btn-cancelar-modal-reserva">Cancelar</button>
+            <button class="btn btn-primary" id="btn-guardar-modal-reserva">Confirmar Reserva</button>
+          </div>
+        </div>
+      </div>
     `;
   }
 
@@ -207,6 +302,103 @@ export class LicenciasView {
       inpDias.addEventListener("input", () => this.recalcularFechasLA());
       inpDias.addEventListener("change", () => this.recalcularFechasLA());
     }
+
+    // Modal Filtro Avanzado Diagramador
+    const modalFiltroDiag = this.container.querySelector("#modal-filtro-avanzado-diagramador");
+    const btnCerrarFiltroDiag = this.container.querySelector("#btn-cerrar-filtro-diag");
+    const btnLimpiarFiltrosDiag = this.container.querySelector("#btn-limpiar-filtros-diag");
+    const btnAplicarFiltrosDiag = this.container.querySelector("#btn-aplicar-filtros-diag");
+
+    if (btnCerrarFiltroDiag && modalFiltroDiag) {
+      btnCerrarFiltroDiag.addEventListener("click", () => modalFiltroDiag.classList.remove("active"));
+    }
+    if (btnLimpiarFiltrosDiag) {
+      btnLimpiarFiltrosDiag.addEventListener("click", () => {
+        this.filtroSectoresDiag = [];
+        this.filtroGruposDiag = [];
+        this.filtroPersonalDiag = [];
+        this.filtroTextoDiag = "";
+        modalFiltroDiag.classList.remove("active");
+        this.renderSubVista();
+      });
+    }
+    if (btnAplicarFiltrosDiag) {
+      btnAplicarFiltrosDiag.addEventListener("click", () => {
+        const secChecks = modalFiltroDiag.querySelectorAll("input[name='filtro-diag-sec']:checked");
+        const grpChecks = modalFiltroDiag.querySelectorAll("input[name='filtro-diag-grp']:checked");
+        const persChecks = modalFiltroDiag.querySelectorAll("input[name='filtro-diag-pers']:checked");
+        this.filtroSectoresDiag = Array.from(secChecks).map(c => c.value);
+        this.filtroGruposDiag = Array.from(grpChecks).map(c => c.value);
+        this.filtroPersonalDiag = Array.from(persChecks).map(c => c.value);
+        modalFiltroDiag.classList.remove("active");
+        this.renderSubVista();
+      });
+    }
+
+    // Modal Reserva LA
+    const modalRes = this.container.querySelector("#modal-reserva-la");
+    const btnCerrarRes = this.container.querySelector("#btn-cerrar-modal-reserva");
+    const btnCancelarRes = this.container.querySelector("#btn-cancelar-modal-reserva");
+    const btnGuardarRes = this.container.querySelector("#btn-guardar-modal-reserva");
+    const selAgenteRes = this.container.querySelector("#reserva-form-legajo");
+    const inpIniRes = this.container.querySelector("#reserva-form-inicio");
+    const inpDiasRes = this.container.querySelector("#reserva-form-dias");
+
+    const cerrarRes = () => modalRes && modalRes.classList.remove("active");
+    if (btnCerrarRes) btnCerrarRes.addEventListener("click", cerrarRes);
+    if (btnCancelarRes) btnCancelarRes.addEventListener("click", cerrarRes);
+    if (btnGuardarRes) btnGuardarRes.addEventListener("click", () => this.guardarReservaLA());
+
+    if (selAgenteRes) {
+      this.comboboxReservaLegajo = new ComboboxSelect(selAgenteRes, {
+        placeholder: "🔍 Buscar por legajo o apellido..."
+      });
+    }
+
+    this.recalcularFechasReserva = () => {
+      const inpFinRes = this.container.querySelector("#reserva-form-fin");
+      const inpVuelveRes = this.container.querySelector("#reserva-form-vuelve");
+      const errDiasRes = this.container.querySelector("#reserva-error-dias");
+
+      const f1 = inpIniRes ? inpIniRes.value : "";
+      const dias = inpDiasRes ? (parseInt(inpDiasRes.value, 10) || 0) : 0;
+
+      if (dias <= 0 || dias % 7 !== 0) {
+        if (errDiasRes) errDiasRes.style.display = "block";
+        if (inpDiasRes) inpDiasRes.style.borderColor = "#dc2626";
+        if (inpFinRes) inpFinRes.value = "";
+        if (inpVuelveRes) inpVuelveRes.value = "";
+        if (btnGuardarRes) btnGuardarRes.disabled = true;
+        return false;
+      }
+
+      if (errDiasRes) errDiasRes.style.display = "none";
+      if (inpDiasRes) inpDiasRes.style.borderColor = "";
+      if (btnGuardarRes) btnGuardarRes.disabled = false;
+
+      if (f1 && dias > 0) {
+        const [y, m, d] = f1.split('-').map(Number);
+        const dtIni = new Date(y, m - 1, d);
+        const dtFin = new Date(dtIni);
+        dtFin.setDate(dtFin.getDate() + (dias - 1));
+        const dtVuelve = new Date(dtFin);
+        dtVuelve.setDate(dtVuelve.getDate() + 1);
+
+        const pad = (n) => String(n).padStart(2, '0');
+        if (inpFinRes) inpFinRes.value = `${dtFin.getFullYear()}-${pad(dtFin.getMonth() + 1)}-${pad(dtFin.getDate())}`;
+        if (inpVuelveRes) inpVuelveRes.value = `${dtVuelve.getFullYear()}-${pad(dtVuelve.getMonth() + 1)}-${pad(dtVuelve.getDate())}`;
+      }
+      return true;
+    };
+
+    if (inpIniRes) {
+      inpIniRes.addEventListener("change", () => this.recalcularFechasReserva());
+      inpIniRes.addEventListener("input", () => this.recalcularFechasReserva());
+    }
+    if (inpDiasRes) {
+      inpDiasRes.addEventListener("input", () => this.recalcularFechasReserva());
+      inpDiasRes.addEventListener("change", () => this.recalcularFechasReserva());
+    }
   }
 
   actualizarBotonesPestanas() {
@@ -233,8 +425,11 @@ export class LicenciasView {
       this.renderSubVistaSaldos(cont);
 
     } else if (this.subVistaActiva === "diagramador") {
+      const countFiltros = (this.filtroSectoresDiag.length > 0 ? 1 : 0) +
+                           (this.filtroGruposDiag.length > 0 ? 1 : 0) +
+                           (this.filtroPersonalDiag.length > 0 ? 1 : 0);
       actionsCont.innerHTML = `
-        <div class="toolbar-group">
+        <div class="toolbar-group" style="flex-wrap: wrap; gap: 6px; align-items: center;">
           <button class="btn btn-secondary btn-pill" id="btn-diag-prev">◀</button>
           <select id="sel-diag-mes">
             ${[
@@ -244,7 +439,11 @@ export class LicenciasView {
           </select>
           <input type="number" id="inp-diag-anio" value="${this.anioDiagramador}" style="width: 75px;">
           <button class="btn btn-secondary btn-pill" id="btn-diag-next">▶</button>
-          <div class="badge-contador-seleccion" id="diag-lbl-contador">📌 Selección: 0 días</div>
+          <input type="text" id="inp-diag-buscar" value="${this.filtroTextoDiag}" placeholder="🔍 Buscar agente..." style="width: 140px; font-size: 13px;">
+          <button class="btn btn-secondary btn-pill" id="btn-diag-filtro-avanzado">⚙️ Filtros (${countFiltros})</button>
+          <button class="btn btn-secondary btn-pill" id="btn-diag-limpiar-filtros" title="Limpiar todos los filtros">✖</button>
+          <button class="btn btn-primary" id="btn-diag-reservar">📌 Reservar</button>
+          <div class="badge-contador-seleccion" id="diag-lbl-contador">📌 Selección: ${this.celdasDiagSeleccionadas.size} días</div>
         </div>
       `;
       this.attachDiagramadorControls(actionsCont);
@@ -484,6 +683,10 @@ export class LicenciasView {
     const inpAnio = cont.querySelector("#inp-diag-anio");
     const btnPrev = cont.querySelector("#btn-diag-prev");
     const btnNext = cont.querySelector("#btn-diag-next");
+    const inpBuscar = cont.querySelector("#inp-diag-buscar");
+    const btnFiltroAdv = cont.querySelector("#btn-diag-filtro-avanzado");
+    const btnLimpiar = cont.querySelector("#btn-diag-limpiar-filtros");
+    const btnReservar = cont.querySelector("#btn-diag-reservar");
 
     if (selMes) selMes.addEventListener("change", (e) => {
       this.mesDiagramador = parseInt(e.target.value, 10);
@@ -510,11 +713,285 @@ export class LicenciasView {
       inpAnio.value = this.anioDiagramador;
       this.renderSubVistaDiagramador(this.container.querySelector("#lic-contenido-subvista"));
     });
+
+    if (inpBuscar) {
+      inpBuscar.addEventListener("input", (e) => {
+        this.filtroTextoDiag = e.target.value;
+        this.renderSubVistaDiagramador(this.container.querySelector("#lic-contenido-subvista"));
+      });
+    }
+
+    if (btnFiltroAdv) {
+      btnFiltroAdv.addEventListener("click", () => this.abrirFiltroAvanzadoDiagramador());
+    }
+
+    if (btnLimpiar) {
+      btnLimpiar.addEventListener("click", () => {
+        this.filtroTextoDiag = "";
+        this.filtroSectoresDiag = [];
+        this.filtroGruposDiag = [];
+        this.filtroPersonalDiag = [];
+        this.renderSubVista();
+      });
+    }
+
+    if (btnReservar) {
+      btnReservar.addEventListener("click", () => {
+        const seleccion = this.obtenerDatosSeleccionDiagramador();
+        this.abrirModalReservaLA(seleccion);
+      });
+    }
+  }
+
+  obtenerAgentesDiagramador() {
+    let agentes = this.store.personal.filter(p => p.activo !== false);
+
+    if (this.filtroTextoDiag) {
+      const q = this.filtroTextoDiag.toLowerCase().trim();
+      agentes = agentes.filter(p =>
+        String(p.legajo).toLowerCase().includes(q) ||
+        (p.apellido || "").toLowerCase().includes(q) ||
+        (p.nombre || "").toLowerCase().includes(q)
+      );
+    }
+
+    if (this.filtroSectoresDiag && this.filtroSectoresDiag.length > 0) {
+      agentes = agentes.filter(p => this.filtroSectoresDiag.includes(p.sector_actual));
+    }
+
+    if (this.filtroGruposDiag && this.filtroGruposDiag.length > 0) {
+      agentes = agentes.filter(p => this.filtroGruposDiag.includes(p.grupo_sap_actual));
+    }
+
+    if (this.filtroPersonalDiag && this.filtroPersonalDiag.length > 0) {
+      agentes = agentes.filter(p => this.filtroPersonalDiag.includes(String(p.legajo).trim()));
+    }
+
+    return agentes;
+  }
+
+  obtenerDatosSeleccionDiagramador() {
+    if (this.celdasDiagSeleccionadas.size === 0) return null;
+    const items = Array.from(this.celdasDiagSeleccionadas).map(k => {
+      const [leg, fecha] = k.split('|');
+      return { legajo: leg, fecha };
+    });
+
+    const porLegajo = {};
+    items.forEach(it => {
+      if (!porLegajo[it.legajo]) porLegajo[it.legajo] = [];
+      porLegajo[it.legajo].push(it.fecha);
+    });
+
+    const legajoPrincipal = Object.keys(porLegajo)[0];
+    const fechas = porLegajo[legajoPrincipal].sort();
+    const fIni = fechas[0];
+    const cantDias = fechas.length;
+    const diasMultiplo = Math.max(7, Math.ceil(cantDias / 7) * 7);
+
+    return {
+      legajo: legajoPrincipal,
+      fIni: fIni,
+      dias: diasMultiplo
+    };
+  }
+
+  verificarSuperposicionNovedad(legajo, fIniStr, fFinStr) {
+    const l = String(legajo).trim();
+    const ini = new Date(fIniStr);
+    const fin = new Date(fFinStr);
+
+    return this.store.novedades.find(n => {
+      if (String(n.legajo).trim() !== l) return false;
+      if (n.activo === false || n.activo === 0 || n.activo === '0') return false;
+      const nIni = new Date(n.fecha_inicio);
+      const nFin = new Date(n.fecha_fin || n.fecha_inicio);
+      return !(fin < nIni || ini > nFin);
+    });
+  }
+
+  abrirFiltroAvanzadoDiagramador() {
+    const modal = this.container.querySelector("#modal-filtro-avanzado-diagramador");
+    if (!modal) return;
+    this.poblarChecksFiltroAvanzadoDiagramador();
+    modal.classList.add("active");
+  }
+
+  poblarChecksFiltroAvanzadoDiagramador() {
+    const modal = this.container.querySelector("#modal-filtro-avanzado-diagramador");
+    if (!modal) return;
+    const secCont = modal.querySelector("#filtro-diag-sectores-checks");
+    const grpCont = modal.querySelector("#filtro-diag-grupos-checks");
+    const persCont = modal.querySelector("#filtro-diag-personal-checks");
+    const inpBusPers = modal.querySelector("#filtro-diag-personal-buscar");
+
+    if (secCont) {
+      secCont.innerHTML = this.store.sectores.map(s => `
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 4px;">
+          <input type="checkbox" name="filtro-diag-sec" value="${s}" ${this.filtroSectoresDiag.includes(s) ? 'checked' : ''}>
+          ${s}
+        </label>
+      `).join('');
+    }
+
+    if (grpCont) {
+      const turnosAsignados = new Set(
+        this.store.personal
+          .filter(p => p.activo !== false && p.grupo_sap_actual)
+          .map(p => p.grupo_sap_actual.trim().toUpperCase())
+      );
+      const turnosFiltrados = Array.from(this.store.turnos.values())
+        .filter(t => turnosAsignados.has(t.codigo_sap.trim().toUpperCase()))
+        .sort((a, b) => a.codigo_sap.localeCompare(b.codigo_sap));
+
+      grpCont.innerHTML = turnosFiltrados.length > 0 ? turnosFiltrados.map(t => `
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 4px;">
+          <input type="checkbox" name="filtro-diag-grp" value="${t.codigo_sap}" ${this.filtroGruposDiag.includes(t.codigo_sap) ? 'checked' : ''}>
+          <b>${t.codigo_sap}</b> (${t.etiqueta_corta || t.descripcion})
+        </label>
+      `).join('') : '<div style="color: var(--text-muted); font-size: 12px;">No hay turnos con personal asignado</div>';
+    }
+
+    if (persCont) {
+      const renderPersonalChecks = (filtro = "") => {
+        const q = filtro.toLowerCase().trim();
+        const agentes = this.store.personal
+          .filter(p => p.activo !== false)
+          .filter(p => !q || String(p.legajo).includes(q) || (p.apellido || "").toLowerCase().includes(q) || (p.nombre || "").toLowerCase().includes(q))
+          .sort((a, b) => (a.apellido || "").localeCompare(b.apellido || ""));
+
+        persCont.innerHTML = agentes.map(p => `
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 4px;">
+            <input type="checkbox" name="filtro-diag-pers" value="${p.legajo}" ${this.filtroPersonalDiag.includes(String(p.legajo).trim()) ? 'checked' : ''}>
+            [${p.legajo}] ${p.apellido}, ${p.nombre} <small style="color: var(--text-muted);">(${p.sector_actual || ''})</small>
+          </label>
+        `).join('');
+      };
+
+      renderPersonalChecks(inpBusPers ? inpBusPers.value : "");
+
+      if (inpBusPers && !inpBusPers.dataset.bound) {
+        inpBusPers.dataset.bound = "true";
+        inpBusPers.addEventListener("input", (e) => renderPersonalChecks(e.target.value));
+      }
+    }
+  }
+
+  abrirModalReservaLA(prefill = null) {
+    if (!this.store.tienePermiso('licencias', 'crear')) {
+      alert("No tenés permisos para registrar reservas de vacaciones.");
+      return;
+    }
+    const modal = this.container.querySelector("#modal-reserva-la");
+    if (!modal) return;
+    const selAgente = modal.querySelector("#reserva-form-legajo");
+    const inpIni = modal.querySelector("#reserva-form-inicio");
+    const inpDias = modal.querySelector("#reserva-form-dias");
+    const inpObs = modal.querySelector("#reserva-form-obs");
+
+    const hoyIso = new Date().toISOString().split('T')[0];
+
+    if (prefill) {
+      selAgente.value = prefill.legajo || "";
+      inpIni.value = prefill.fIni || hoyIso;
+      inpDias.value = prefill.dias ? String(prefill.dias) : "14";
+    } else {
+      selAgente.value = "";
+      inpIni.value = hoyIso;
+      inpDias.value = "14";
+    }
+    inpObs.value = "";
+
+    if (this.comboboxReservaLegajo) {
+      this.comboboxReservaLegajo.actualizar();
+    }
+
+    if (typeof this.recalcularFechasReserva === 'function') {
+      this.recalcularFechasReserva();
+    }
+
+    modal.classList.add("active");
+  }
+
+  async guardarReservaLA() {
+    const modal = this.container.querySelector("#modal-reserva-la");
+    if (!modal) return;
+
+    const selAgente = modal.querySelector("#reserva-form-legajo");
+    const inpIni = modal.querySelector("#reserva-form-inicio");
+    const inpFin = modal.querySelector("#reserva-form-fin");
+    const inpDias = modal.querySelector("#reserva-form-dias");
+    const inpVuelve = modal.querySelector("#reserva-form-vuelve");
+    const inpObs = modal.querySelector("#reserva-form-obs");
+
+    const leg = selAgente.value.trim();
+    const fIni = inpIni.value;
+    const fFin = inpFin.value;
+    const dias = parseInt(inpDias.value, 10) || 0;
+    const fVuelve = inpVuelve.value;
+    const obs = inpObs.value.trim();
+
+    if (!leg) { alert("Seleccioná un agente."); return; }
+    if (!fIni) { alert("Completá la fecha de inicio."); return; }
+    if (dias <= 0 || dias % 7 !== 0) {
+      alert("La cantidad de días debe ser múltiplo de 7 (ej: 7, 14, 21, 28, etc.).");
+      inpDias.focus();
+      return;
+    }
+    if (!fFin) {
+      alert("Fecha de fin no calculada. Revisá la fecha de inicio.");
+      return;
+    }
+
+    const conflicto = this.verificarSuperposicionNovedad(leg, fIni, fFin);
+    if (conflicto) {
+      const conf = confirm(`El agente ${leg} ya posee una novedad activa '${conflicto.motivo}' entre el ${conflicto.fecha_inicio} y el ${conflicto.fecha_fin}.\n\n¿Deseás registrar la reserva igualmente?`);
+      if (!conf) return;
+    }
+
+    const client = getSupabaseClient();
+    const ahoraIso = new Date().toISOString();
+    const payload = {
+      legajo: leg,
+      fecha_inicio: fIni,
+      fecha_fin: fFin,
+      fecha_reincorporacion: fVuelve || null,
+      cantidad_dias: dias,
+      motivo: "Reserva Vacaciones",
+      tipo_color: "reserva",
+      color_hex: "#ddd6fe",
+      periodo_imputado: "PRE-DIAGRAMA",
+      observaciones: obs || `Reserva Vacaciones (${dias} días) [PRE-DIAGRAMA]`,
+      enviado_rrhh: false,
+      activo: true,
+      sync_status: 'synced',
+      updated_at: ahoraIso
+    };
+
+    try {
+      const { data: novData, error: novErr } = await client.from('novedades').insert(payload).select();
+      if (novErr) throw novErr;
+
+      if (novData && novData.length > 0) {
+        this.store.novedades.unshift(novData[0]);
+        await this.store.auditar('novedades', 'CREACIÓN', novData[0].id, null, novData[0]);
+      } else {
+        this.store.novedades.unshift({ ...payload, id: Date.now() });
+      }
+
+      this.store.guardarCacheLocal();
+      this.celdasDiagSeleccionadas.clear();
+      modal.classList.remove("active");
+      this.renderSubVistaDiagramador(this.container.querySelector("#lic-contenido-subvista"));
+      alert(`Reserva de ${dias} días registrada con éxito para el legajo ${leg}.\nPeríodo: ${fIni} al ${fFin} (Sin descontar saldo oficial).`);
+    } catch (err) {
+      alert(`Error al registrar la reserva: ${err.message}`);
+    }
   }
 
   renderSubVistaDiagramador(cont) {
     const dias = this.obtenerDiasDelMes(this.anioDiagramador, this.mesDiagramador);
-    const agentes = this.store.personal.filter(p => p.activo !== false);
+    const agentes = this.obtenerAgentesDiagramador();
 
     // Contar agentes de vacaciones por cada día para la fila de Cupo
     const conteoVacaciones = {};
@@ -561,30 +1038,44 @@ export class LicenciasView {
           <tbody>
     `;
 
-    agentes.forEach(ag => {
-      const leg = String(ag.legajo).trim();
+    if (agentes.length === 0) {
       html += `
         <tr>
-          <td class="sticky-col-1" style="font-weight: 700;">${leg}</td>
-          <td class="sticky-col-2"><b>${ag.apellido}</b>, ${ag.nombre}</td>
-          ${dias.map(d => {
-            const cel = calcularCeldaDiagramador(leg, d.iso, this.store);
-            const isSelected = this.celdasDiagSeleccionadas.has(`${leg}|${d.iso}`);
-            return `
-              <td class="celda-sabana ${isSelected ? 'selected' : ''}" 
-                  data-legajo="${leg}" 
-                  data-fecha="${d.iso}"
-                  style="background-color: ${cel.bg}; color: #0f172a; text-align: center; font-weight: 700;">
-                ${cel.texto}
-              </td>
-            `;
-          }).join('')}
+          <td colspan="${dias.length + 2}" style="text-align: center; padding: 30px; color: var(--text-muted);">
+            No se encontraron agentes con los filtros indicados.
+          </td>
         </tr>
       `;
-    });
+    } else {
+      agentes.forEach(ag => {
+        const leg = String(ag.legajo).trim();
+        html += `
+          <tr>
+            <td class="sticky-col-1" style="font-weight: 700;">${leg}</td>
+            <td class="sticky-col-2"><b>${ag.apellido}</b>, ${ag.nombre}</td>
+            ${dias.map(d => {
+              const cel = calcularCeldaDiagramador(leg, d.iso, this.store);
+              const isSelected = this.celdasDiagSeleccionadas.has(`${leg}|${d.iso}`);
+              const titleTag = cel.esReserva ? 'Pre-diagrama / Reserva' : (cel.esVacacion ? 'Licencia Oficial' : '');
+              return `
+                <td class="celda-sabana ${isSelected ? 'selected' : ''}" 
+                    data-legajo="${leg}" 
+                    data-fecha="${d.iso}"
+                    title="${titleTag}"
+                    style="background-color: ${cel.bg}; color: ${cel.color || '#0f172a'}; text-align: center; font-weight: 700;">
+                  ${cel.texto}
+                </td>
+              `;
+            }).join('')}
+          </tr>
+        `;
+      });
+    }
 
     html += `</tbody></table></div>`;
     cont.innerHTML = html;
+
+    habilitarOcultarLegajoEnScroll(cont.querySelector(".table-container"));
 
     // Conectar selección de celdas en el diagramador
     cont.querySelectorAll(".celda-sabana").forEach(c => {

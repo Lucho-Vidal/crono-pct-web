@@ -112,6 +112,7 @@ export function obtenerColorMotivo(motivo, tipoColor, colorHex, store) {
   }
   // Colores estándar por tipo
   const tipo = String(tipoColor || "").toLowerCase();
+  if (tipo === "reserva" || m.includes("reserva") || m.includes("pre-diagrama")) return "#ddd6fe";
   if (tipo === "franco" || m === "franco") return "#fde9d9";
   if (tipo === "noche" || m.includes("22 a 06")) return "#ddd9c4";
   if (tipo === "cambio") return "#daeef3";
@@ -123,6 +124,7 @@ export function normalizarTextoTurno(texto) {
   if (!texto) return "";
   const t = String(texto).trim();
   const lower = t.toLowerCase();
+  if (lower.includes("reserva") || lower.includes("pre-diagrama")) return "PRE";
   if (lower === "flex" || lower.includes("flex")) return "FL";
   if (lower === "licencia anual") return "LA";
   if (lower === "franco") return "F";
@@ -225,23 +227,32 @@ export function calcularCelda(legajo, fechaStr, store) {
 export function calcularCeldaDiagramador(legajo, fechaStr, store) {
   const celda = calcularCelda(legajo, fechaStr, store);
   const t = (celda.texto || "").trim();
+  const nov = celda.novedad;
+  const motivo = (nov?.motivo || "").toLowerCase();
+  const obs = String(nov?.observaciones || "").toUpperCase();
+  const tipo = String(nov?.tipo_color || "").toLowerCase();
 
-  // Si tiene vacación / Licencia Anual
-  if (t === "LA" || (celda.novedad && celda.novedad.motivo && celda.novedad.motivo.toLowerCase().includes("licencia anual"))) {
-    return { texto: "LA", bg: "#ffff00", esVacacion: true };
+  // 1. Si es Reserva / Pre-diagrama
+  if (t === "PRE" || tipo === "reserva" || motivo.includes("reserva") || obs.includes("PRE-DIAGRAMA") || obs.includes("RESERVA")) {
+    return { texto: "PRE", bg: "#ddd6fe", color: "#5b21b6", esVacacion: true, esReserva: true };
   }
 
-  // Si está de Franco
+  // 2. Si tiene vacación oficial / Licencia Anual
+  if (t === "LA" || motivo.includes("licencia anual") || (motivo.includes("vacacion") && !motivo.includes("reserva"))) {
+    return { texto: "LA", bg: "#ffff00", color: "#000000", esVacacion: true, esReserva: false };
+  }
+
+  // 3. Si está de Franco
   if (t === "F" || celda.tipo === "franco") {
-    return { texto: "F", bg: "#fde9d9", esVacacion: false };
+    return { texto: "F", bg: "#fde9d9", color: "#595959", esVacacion: false };
   }
 
-  // Si es un horario laboral, extraer los 2 primeros dígitos de la hora de entrada
+  // 4. Si es un horario laboral, extraer los 2 primeros dígitos de la hora de entrada
   const match = t.match(/^(\d{1,2})/);
   if (match) {
     const dosDigitos = match[1].padStart(2, '0');
-    return { texto: dosDigitos, bg: "#f8fafc", esVacacion: false };
+    return { texto: dosDigitos, bg: "#f8fafc", color: "#0f172a", esVacacion: false };
   }
 
-  return { texto: t || "-", bg: "#ffffff", esVacacion: false };
+  return { texto: t || "-", bg: "#ffffff", color: "#0f172a", esVacacion: false };
 }
