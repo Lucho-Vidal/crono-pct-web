@@ -756,16 +756,26 @@ class AppController {
     const cPersonal = document.getElementById('view-personal');
     const cLicencias = document.getElementById('view-licencias');
 
-    this.sabanaView = new SabanaView(cSabana, this.store, (datos) => {
-      this.cambiarVista('novedades');
-      if (this.novedadesView) {
-        if (datos && datos.id) {
-          this.novedadesView.abrirModalCRUD(datos);
-        } else {
-          this.novedadesView.abrirModalCRUD(null, datos);
+    this.sabanaView = new SabanaView(
+      cSabana,
+      this.store,
+      (datos) => {
+        this.cambiarVista('novedades');
+        if (this.novedadesView) {
+          if (datos && datos.id) {
+            this.novedadesView.abrirModalCRUD(datos);
+          } else {
+            this.novedadesView.abrirModalCRUD(null, datos);
+          }
+        }
+      },
+      (datos) => {
+        this.cambiarVista('novedades');
+        if (this.novedadesView) {
+          this.novedadesView.abrirModalCambioTurno(datos);
         }
       }
-    });
+    );
 
     this.novedadesView = new NovedadesView(cNovedades, this.store, () => {
       this.cambiarVista('licencias');

@@ -661,6 +661,11 @@ export class WebDataStore {
     if (typeof permisos === 'string') {
       try { permisos = JSON.parse(permisos); } catch (e) { permisos = {}; }
     }
+    if (modulo === 'cambio_turno') {
+      const pCt = permisos && permisos['cambio_turno'] ? permisos['cambio_turno'][accion] : undefined;
+      if (pCt !== undefined) return Boolean(pCt);
+      return this.tienePermiso('novedades', accion);
+    }
     const modPermisos = permisos ? permisos[modulo] : null;
     return modPermisos ? Boolean(modPermisos[accion]) : false;
   }

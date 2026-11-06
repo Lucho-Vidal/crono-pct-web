@@ -1,5 +1,5 @@
 // views/novedades.js - Explorador CRUD de Novedades con Color y Cobertura SAP
-import { parseFechaISO } from '../engine_turnos.js';
+import { parseFechaISO, asignacionEn } from '../engine_turnos.js';
 import { getSupabaseClient } from '../supabase.js';
 import { ComboboxSelect } from '../combobox.js';
 
@@ -61,6 +61,7 @@ export class NovedadesView {
               Mostrar dadas de baja
             </label>
             <button class="btn btn-secondary" id="btn-nov-toggle-vista">${this.vistaTarjetas ? '📊 Tabla' : '📱 Tarjetas'}</button>
+            <button class="btn btn-secondary" id="btn-nov-cambio-turno">🔄 Cambio de Turno</button>
             <button class="btn btn-primary" id="btn-nov-nueva">➕ Nueva Novedad</button>
           </div>
         </div>
@@ -158,6 +159,60 @@ export class NovedadesView {
           <div class="modal-footer">
             <button class="btn btn-secondary" id="btn-cancelar-modal-novedad">Cancelar</button>
             <button class="btn btn-primary" id="btn-guardar-modal-novedad">Guardar Novedad</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Cambio de Turno SAP -->
+      <div class="modal-overlay" id="modal-cambio-turno">
+        <div class="modal-content" style="max-width: 580px;">
+          <div class="modal-header">
+            <h3>🔄 Registrar Cambio de Turno SAP</h3>
+            <button class="btn-icon" id="btn-cerrar-modal-cambio">✖</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>Personal 1 *:</label>
+              <select id="cambio-form-legajo1" required>
+                <option value="">-- Seleccionar Personal 1 --</option>
+              </select>
+              <div id="cambio-turno-badge1" style="font-size: 12px; color: #1e3a8a; font-weight: 600; margin-top: 4px;">Turno SAP actual: —</div>
+            </div>
+
+            <div class="form-group">
+              <label>Personal 2 *:</label>
+              <select id="cambio-form-legajo2" required>
+                <option value="">-- Seleccionar Personal 2 --</option>
+              </select>
+              <div id="cambio-turno-badge2" style="font-size: 12px; color: #1e3a8a; font-weight: 600; margin-top: 4px;">Turno SAP actual: —</div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Fecha Desde *:</label>
+                <input type="date" id="cambio-form-inicio" required>
+              </div>
+              <div class="form-group">
+                <label>Fecha Hasta *:</label>
+                <input type="date" id="cambio-form-fin" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Observaciones (opcional):</label>
+              <input type="text" id="cambio-form-obs" placeholder="Motivo o acuerdo del cambio...">
+            </div>
+
+            <div id="cambio-resumen-box" style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.5;">
+              <div style="font-weight: 700; margin-bottom: 6px; color: #0f172a;">Resumen del Intercambio:</div>
+              <div id="cambio-resumen-linea1">Personal 1 ➡️ —</div>
+              <div id="cambio-resumen-linea2">Personal 2 ➡️ —</div>
+              <div id="cambio-resumen-aviso" style="margin-top: 6px; font-weight: 600;"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" id="btn-cancelar-modal-cambio">Cancelar</button>
+            <button class="btn btn-primary" id="btn-guardar-modal-cambio">Guardar Cambio de Turno</button>
           </div>
         </div>
       </div>
@@ -424,6 +479,58 @@ export class NovedadesView {
     if (selFormMot) {
       this.comboboxMotivo = new ComboboxSelect(selFormMot, {
         placeholder: "🔍 Buscar motivo o código SAP..."
+      });
+    }
+
+    // Modal Cambio de Turno eventos
+    const btnCambioTurno = this.container.querySelector("#btn-nov-cambio-turno");
+    if (btnCambioTurno) {
+      btnCambioTurno.addEventListener("click", () => {
+        this.abrirModalCambioTurno(null);
+      });
+    }
+
+    const modalCambio = this.container.querySelector("#modal-cambio-turno");
+    const btnCerrarCambio = this.container.querySelector("#btn-cerrar-modal-cambio");
+    const btnCancelarCambio = this.container.querySelector("#btn-cancelar-modal-cambio");
+    const btnGuardarCambio = this.container.querySelector("#btn-guardar-modal-cambio");
+
+    const cerrarCambio = () => modalCambio && modalCambio.classList.remove("active");
+    if (btnCerrarCambio) btnCerrarCambio.addEventListener("click", cerrarCambio);
+    if (btnCancelarCambio) btnCancelarCambio.addEventListener("click", cerrarCambio);
+
+    if (btnGuardarCambio) {
+      btnGuardarCambio.addEventListener("click", () => this.guardarCambioTurno());
+    }
+
+    const inpCambioIni = this.container.querySelector("#cambio-form-inicio");
+    const inpCambioFin = this.container.querySelector("#cambio-form-fin");
+    const selCambioLeg1 = this.container.querySelector("#cambio-form-legajo1");
+    const selCambioLeg2 = this.container.querySelector("#cambio-form-legajo2");
+
+    if (inpCambioIni && inpCambioFin) {
+      inpCambioIni.addEventListener("change", () => {
+        const nuevaIni = inpCambioIni.value;
+        const finActual = inpCambioFin.value;
+        if (!finActual || finActual === this._cambioFechaAnteriorInicio || finActual < nuevaIni) {
+          inpCambioFin.value = nuevaIni;
+        }
+        this._cambioFechaAnteriorInicio = nuevaIni;
+        this.actualizarResumenCambioTurno();
+      });
+      inpCambioFin.addEventListener("change", () => this.actualizarResumenCambioTurno());
+    }
+
+    if (selCambioLeg1) {
+      selCambioLeg1.addEventListener("change", () => this.actualizarResumenCambioTurno());
+      this.comboboxCambioLeg1 = new ComboboxSelect(selCambioLeg1, {
+        placeholder: "🔍 Buscar Personal 1..."
+      });
+    }
+    if (selCambioLeg2) {
+      selCambioLeg2.addEventListener("change", () => this.actualizarResumenCambioTurno());
+      this.comboboxCambioLeg2 = new ComboboxSelect(selCambioLeg2, {
+        placeholder: "🔍 Buscar Personal 2..."
       });
     }
   }
@@ -790,6 +897,237 @@ export class NovedadesView {
       alert("Novedad reactivada con éxito.");
     } catch (err) {
       alert(`Error al reactivar la novedad: ${err.message}`);
+    }
+  }
+
+  abrirModalCambioTurno(prefill = null) {
+    if (!this.store.tienePermiso('cambio_turno', 'crear')) {
+      alert("No tenés permisos para registrar cambios de turno.");
+      return;
+    }
+
+    const modal = this.container.querySelector("#modal-cambio-turno");
+    const selLeg1 = this.container.querySelector("#cambio-form-legajo1");
+    const selLeg2 = this.container.querySelector("#cambio-form-legajo2");
+    const inpIni = this.container.querySelector("#cambio-form-inicio");
+    const inpFin = this.container.querySelector("#cambio-form-fin");
+    const txtObs = this.container.querySelector("#cambio-form-obs");
+
+    const agentesActivos = this.store.personal.filter(p => p.activo !== false);
+    if (agentesActivos.length < 2) {
+      alert("Se requieren al menos 2 agentes activos para registrar un cambio de turno.");
+      return;
+    }
+
+    const optionsHtml = '<option value="">-- Seleccionar Personal --</option>' + agentesActivos.map(p => `
+      <option value="${p.legajo}">[${p.legajo}] ${p.apellido}, ${p.nombre} (${p.sector_actual || ''})</option>
+    `).join('');
+
+    selLeg1.innerHTML = optionsHtml;
+    selLeg2.innerHTML = optionsHtml;
+
+    const hoyIso = new Date().toISOString().split('T')[0];
+    const iniVal = prefill && prefill.fecha_inicio ? parseFechaISO(prefill.fecha_inicio) : hoyIso;
+    const finVal = prefill && prefill.fecha_fin ? parseFechaISO(prefill.fecha_fin) : iniVal;
+
+    inpIni.value = iniVal;
+    inpFin.value = finVal;
+    this._cambioFechaAnteriorInicio = iniVal;
+    txtObs.value = prefill && prefill.observaciones ? prefill.observaciones : "";
+
+    if (prefill && prefill.legajo) {
+      selLeg1.value = String(prefill.legajo).trim();
+      const otro = agentesActivos.find(a => String(a.legajo).trim() !== String(prefill.legajo).trim());
+      selLeg2.value = otro ? String(otro.legajo).trim() : "";
+    } else {
+      selLeg1.value = String(agentesActivos[0].legajo).trim();
+      selLeg2.value = String(agentesActivos[1].legajo).trim();
+    }
+
+    if (this.comboboxCambioLeg1) this.comboboxCambioLeg1.actualizar();
+    if (this.comboboxCambioLeg2) this.comboboxCambioLeg2.actualizar();
+
+    this.actualizarResumenCambioTurno();
+    modal.classList.add("active");
+  }
+
+  actualizarResumenCambioTurno() {
+    const selLeg1 = this.container.querySelector("#cambio-form-legajo1");
+    const selLeg2 = this.container.querySelector("#cambio-form-legajo2");
+    const inpIni = this.container.querySelector("#cambio-form-inicio");
+    const badge1 = this.container.querySelector("#cambio-turno-badge1");
+    const badge2 = this.container.querySelector("#cambio-turno-badge2");
+    const linea1 = this.container.querySelector("#cambio-resumen-linea1");
+    const linea2 = this.container.querySelector("#cambio-resumen-linea2");
+    const aviso = this.container.querySelector("#cambio-resumen-aviso");
+
+    const leg1 = selLeg1 ? selLeg1.value.trim() : "";
+    const leg2 = selLeg2 ? selLeg2.value.trim() : "";
+    const fecha = inpIni && inpIni.value ? inpIni.value : new Date().toISOString().split('T')[0];
+
+    const asig1 = leg1 ? asignacionEn(leg1, fecha, this.store) : { codigo_sap: "" };
+    const asig2 = leg2 ? asignacionEn(leg2, fecha, this.store) : { codigo_sap: "" };
+
+    const t1 = asig1.codigo_sap ? this.store.turnos.get(asig1.codigo_sap) : null;
+    const t2 = asig2.codigo_sap ? this.store.turnos.get(asig2.codigo_sap) : null;
+
+    const desc1 = t1 ? (t1.descripcion || t1.etiqueta_corta || t1.codigo_sap) : (asig1.codigo_sap || "Sin Turno SAP");
+    const desc2 = t2 ? (t2.descripcion || t2.etiqueta_corta || t2.codigo_sap) : (asig2.codigo_sap || "Sin Turno SAP");
+
+    const lbl1 = asig1.codigo_sap && desc1 !== asig1.codigo_sap ? `${asig1.codigo_sap} - ${desc1}` : (desc1 || "—");
+    const lbl2 = asig2.codigo_sap && desc2 !== asig2.codigo_sap ? `${asig2.codigo_sap} - ${desc2}` : (desc2 || "—");
+
+    if (badge1) badge1.textContent = `Turno SAP actual: ${lbl1}`;
+    if (badge2) badge2.textContent = `Turno SAP actual: ${lbl2}`;
+
+    const ag1 = this.store.personal.find(p => String(p.legajo).trim() === leg1);
+    const ag2 = this.store.personal.find(p => String(p.legajo).trim() === leg2);
+    const nom1 = ag1 ? `[${ag1.legajo}] ${ag1.apellido}, ${ag1.nombre}` : (leg1 || "Personal 1");
+    const nom2 = ag2 ? `[${ag2.legajo}] ${ag2.apellido}, ${ag2.nombre}` : (leg2 || "Personal 2");
+
+    if (linea1) linea1.innerHTML = `<b>${nom1}</b> ➡️ Pasará al turno <b>${lbl2}</b> (Reemplaza a ${nom2})`;
+    if (linea2) linea2.innerHTML = `<b>${nom2}</b> ➡️ Pasará al turno <b>${lbl1}</b> (Reemplaza a ${nom1})`;
+
+    if (aviso) {
+      if (leg1 && leg2 && leg1 === leg2) {
+        aviso.innerHTML = "<span style='color: #dc2626;'>⚠️ Debe seleccionar dos agentes distintos.</span>";
+      } else if (leg1 && !asig1.codigo_sap) {
+        aviso.innerHTML = `<span style='color: #dc2626;'>⚠️ Personal 1 [${leg1}] no tiene turno SAP asignado.</span>`;
+      } else if (leg2 && !asig2.codigo_sap) {
+        aviso.innerHTML = `<span style='color: #dc2626;'>⚠️ Personal 2 [${leg2}] no tiene turno SAP asignado.</span>`;
+      } else if (asig1.codigo_sap && asig2.codigo_sap && asig1.codigo_sap === asig2.codigo_sap) {
+        aviso.innerHTML = "<span style='color: #d97706;'>ℹ️ Ambos agentes tienen el mismo Turno SAP asignado.</span>";
+      } else {
+        aviso.innerHTML = "<span style='color: #16a34a;'>✓ Intercambio listo para registrarse.</span>";
+      }
+    }
+  }
+
+  async guardarCambioTurno() {
+    if (!this.store.tienePermiso('cambio_turno', 'crear')) {
+      alert("No tenés permisos para registrar cambios de turno.");
+      return;
+    }
+
+    const selLeg1 = this.container.querySelector("#cambio-form-legajo1");
+    const selLeg2 = this.container.querySelector("#cambio-form-legajo2");
+    const inpIni = this.container.querySelector("#cambio-form-inicio");
+    const inpFin = this.container.querySelector("#cambio-form-fin");
+    const txtObs = this.container.querySelector("#cambio-form-obs");
+
+    const leg1 = selLeg1.value.trim();
+    const leg2 = selLeg2.value.trim();
+    const fIni = inpIni.value;
+    const fFin = inpFin.value;
+    const obsUser = txtObs.value.trim();
+
+    if (!leg1 || !leg2) {
+      alert("Debés seleccionar a ambos personales.");
+      return;
+    }
+    if (leg1 === leg2) {
+      alert("No podés seleccionar al mismo personal en ambos campos.");
+      return;
+    }
+    if (!fIni || !fFin) {
+      alert("Las fechas de inicio y fin son obligatorias.");
+      return;
+    }
+    if (fFin < fIni) {
+      alert("La fecha 'Hasta' no puede ser anterior a 'Desde'.");
+      return;
+    }
+
+    const asig1 = asignacionEn(leg1, fIni, this.store);
+    const asig2 = asignacionEn(leg2, fIni, this.store);
+
+    if (!asig1.codigo_sap) {
+      alert(`El Personal 1 [${leg1}] no tiene un Turno SAP asignado.`);
+      return;
+    }
+    if (!asig2.codigo_sap) {
+      alert(`El Personal 2 [${leg2}] no tiene un Turno SAP asignado.`);
+      return;
+    }
+
+    if (asig1.codigo_sap === asig2.codigo_sap) {
+      const continuar = confirm(
+        `Ambos agentes tienen asignado el mismo Turno SAP base (${asig1.codigo_sap}).\n\n¿Deseás registrar el cambio de turno de todos modos?`
+      );
+      if (!continuar) return;
+    }
+
+    const t1 = this.store.turnos.get(asig1.codigo_sap);
+    const t2 = this.store.turnos.get(asig2.codigo_sap);
+    const desc1 = t1 ? (t1.descripcion || t1.etiqueta_corta || t1.codigo_sap) : asig1.codigo_sap;
+    const desc2 = t2 ? (t2.descripcion || t2.etiqueta_corta || t2.codigo_sap) : asig2.codigo_sap;
+    const lbl1 = desc1 && desc1 !== asig1.codigo_sap ? `${asig1.codigo_sap} - ${desc1}` : asig1.codigo_sap;
+    const lbl2 = desc2 && desc2 !== asig2.codigo_sap ? `${asig2.codigo_sap} - ${desc2}` : asig2.codigo_sap;
+
+    const ag1 = this.store.personal.find(p => String(p.legajo).trim() === leg1);
+    const ag2 = this.store.personal.find(p => String(p.legajo).trim() === leg2);
+    const nom1 = ag1 ? `${ag1.apellido} ${ag1.nombre}`.trim() : leg1;
+    const nom2 = ag2 ? `${ag2.apellido} ${ag2.nombre}`.trim() : leg2;
+
+    const obsExtra = obsUser ? ` - ${obsUser}` : "";
+    const obs1 = `Cambio de turno con [${leg2}] ${nom2}${obsExtra}`;
+    const obs2 = `Cambio de turno con [${leg1}] ${nom1}${obsExtra}`;
+
+    const client = getSupabaseClient();
+    const ahoraIso = new Date().toISOString();
+
+    const payload1 = {
+      legajo: leg1,
+      fecha_inicio: fIni,
+      fecha_fin: fFin,
+      motivo: lbl2,
+      tipo_color: "cambio",
+      color_hex: "#daeef3",
+      codigo_sap_temporal: asig2.codigo_sap,
+      legajo_reemplazado: leg2,
+      observaciones: obs1,
+      activo: true,
+      sync_status: "synced",
+      updated_at: ahoraIso
+    };
+
+    const payload2 = {
+      legajo: leg2,
+      fecha_inicio: fIni,
+      fecha_fin: fFin,
+      motivo: lbl1,
+      tipo_color: "cambio",
+      color_hex: "#daeef3",
+      codigo_sap_temporal: asig1.codigo_sap,
+      legajo_reemplazado: leg1,
+      observaciones: obs2,
+      activo: true,
+      sync_status: "synced",
+      updated_at: ahoraIso
+    };
+
+    try {
+      const { data, error } = await client
+        .from('novedades')
+        .insert([payload1, payload2])
+        .select();
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        for (const novCreada of data) {
+          this.store.novedades.unshift(novCreada);
+          await this.store.auditar('novedades', 'CREACIÓN', novCreada.id, null, novCreada);
+        }
+      }
+
+      this.store.guardarCacheLocal();
+      const modal = this.container.querySelector("#modal-cambio-turno");
+      if (modal) modal.classList.remove("active");
+      this.renderTablaOCards();
+      alert("Cambio de turno registrado correctamente.");
+    } catch (err) {
+      alert(`Error al registrar el cambio de turno: ${err.message}`);
     }
   }
 

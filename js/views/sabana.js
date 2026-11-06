@@ -4,10 +4,11 @@ import { getSupabaseClient } from '../supabase.js';
 import { habilitarOcultarLegajoEnScroll } from '../combobox.js';
 
 export class SabanaView {
-  constructor(container, store, onOpenNovedadModal) {
+  constructor(container, store, onOpenNovedadModal, onOpenCambioTurnoModal) {
     this.container = container;
     this.store = store;
     this.onOpenNovedadModal = onOpenNovedadModal;
+    this.onOpenCambioTurnoModal = onOpenCambioTurnoModal;
 
     const hoy = new Date();
     this.mesActual = hoy.getMonth() + 1;
@@ -58,6 +59,7 @@ export class SabanaView {
 
           <div class="toolbar-group">
             <button class="btn btn-secondary" id="btn-sabana-filtro-avanzado">⚙️ Filtros (${this.contarFiltrosActivos()})</button>
+            <button class="btn btn-secondary" id="btn-sabana-cambio-turno" title="Registrar cambio de turno para la selección">🔄 Cambio de Turno</button>
             <button class="btn btn-primary" id="btn-sabana-cargar-novedad">➕ Cargar Novedad</button>
           </div>
         </div>
@@ -340,6 +342,11 @@ export class SabanaView {
     const btnCargar = this.container.querySelector("#btn-sabana-cargar-novedad");
     if (btnCargar) btnCargar.addEventListener("click", () => {
       this.abrirModalNovedadDesdeSeleccion();
+    });
+
+    const btnCambioTurno = this.container.querySelector("#btn-sabana-cambio-turno");
+    if (btnCambioTurno) btnCambioTurno.addEventListener("click", () => {
+      this.abrirModalCambioTurnoDesdeSeleccion();
     });
 
     // Filtros avanzados
@@ -709,6 +716,31 @@ export class SabanaView {
         fecha_inicio: fIni,
         fecha_fin: fFin,
         esNuevo: true
+      });
+    }
+  }
+
+  abrirModalCambioTurnoDesdeSeleccion() {
+    let legajo = null;
+    let fIni = null;
+    let fFin = null;
+
+    if (this.celdasSeleccionadas.size > 0) {
+      const items = Array.from(this.celdasSeleccionadas).map(k => {
+        const [leg, fec] = k.split('|');
+        return { legajo: leg, fecha: fec };
+      });
+      legajo = items[0].legajo;
+      const fechas = items.map(x => x.fecha).sort();
+      fIni = fechas[0];
+      fFin = fechas[fechas.length - 1];
+    }
+
+    if (this.onOpenCambioTurnoModal) {
+      this.onOpenCambioTurnoModal({
+        legajo: legajo,
+        fecha_inicio: fIni,
+        fecha_fin: fFin,
       });
     }
   }
