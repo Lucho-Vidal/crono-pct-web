@@ -126,6 +126,9 @@ export function normalizarTextoTurno(texto) {
   const lower = t.toLowerCase();
   if (lower.includes("reserva") || lower.includes("pre-diagrama")) return "PRE";
   if (lower === "flex" || lower.includes("flex")) return "FL";
+  if (lower === "Capacitación" || lower.includes("capacitación")) return "CAP";
+  if (lower === "Parte Médico" || lower.includes("parte médico")) return "PM";
+  if (lower === "Lic-Examen" || lower.includes("lic-examen")) return "LE";
   if (lower === "licencia anual") return "LA";
   if (lower === "franco") return "F";
   return t;
