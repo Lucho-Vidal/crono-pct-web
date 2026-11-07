@@ -107,6 +107,7 @@ export class NovedadesView {
             <div class="form-group">
               <label>Motivo / Turno SAP:</label>
               <select id="nov-form-motivo">
+                <option value="">-- Seleccionar Motivo / Turno SAP --</option>
                 <!-- Motivos del catálogo -->
                 ${this.store.catalogo_motivos.map(m => `
                   <option value="${m.valor}" data-color="${m.color_hex || ''}" data-tipo="${m.tipo_color || 'licencia'}" data-sap="">${m.valor}</option>
@@ -448,15 +449,23 @@ export class NovedadesView {
           inpFormMotOtro.style.display = "block";
         } else {
           inpFormMotOtro.style.display = "none";
-          const opt = selFormMot.selectedOptions[0];
-          const col = opt.getAttribute("data-color");
-          const tipo = opt.getAttribute("data-tipo");
-          if (col) {
-            inpFormColor.value = col;
-            prevColor.textContent = col.toUpperCase();
+          if (!val) {
+            selFormTipo.value = "licencia";
+            inpFormColor.value = "#ffff00";
+            prevColor.textContent = "#FFFF00";
+            return;
           }
-          if (tipo) {
-            selFormTipo.value = tipo;
+          const opt = selFormMot.selectedOptions && selFormMot.selectedOptions[0];
+          if (opt) {
+            const col = opt.getAttribute("data-color");
+            const tipo = opt.getAttribute("data-tipo");
+            if (col) {
+              inpFormColor.value = col;
+              prevColor.textContent = col.toUpperCase();
+            }
+            if (tipo) {
+              selFormTipo.value = tipo;
+            }
           }
         }
       });
@@ -479,6 +488,13 @@ export class NovedadesView {
     if (selFormMot) {
       this.comboboxMotivo = new ComboboxSelect(selFormMot, {
         placeholder: "🔍 Buscar motivo o código SAP..."
+      });
+    }
+
+    const selFormLegReemp = this.container.querySelector("#nov-form-legajo-reemplazado");
+    if (selFormLegReemp) {
+      this.comboboxLegajoReemplazado = new ComboboxSelect(selFormLegReemp, {
+        placeholder: "🔍 Buscar personal reemplazado..."
       });
     }
 
@@ -602,6 +618,7 @@ export class NovedadesView {
 
     // Motivos combinados: primero motivos regulares de catálogo, luego Turnos SAP activos
     const opcionesMotivos = [];
+    opcionesMotivos.push('<option value="">-- Seleccionar Motivo / Turno SAP --</option>');
     (this.store.catalogo_motivos || []).forEach(m => {
       opcionesMotivos.push(`<option value="${m.valor}" data-color="${m.color_hex || ''}" data-tipo="${m.tipo_color || 'licencia'}" data-sap="">${m.valor}</option>`);
     });
@@ -659,7 +676,7 @@ export class NovedadesView {
         inpFin.value = hoyIso;
       }
 
-      selMot.selectedIndex = 0;
+      selMot.value = "";
       inpMotOtro.style.display = "none";
       inpMotOtro.value = "";
       selTipo.value = "licencia";
@@ -677,6 +694,9 @@ export class NovedadesView {
     }
     if (this.comboboxMotivo) {
       this.comboboxMotivo.actualizar();
+    }
+    if (this.comboboxLegajoReemplazado) {
+      this.comboboxLegajoReemplazado.actualizar();
     }
 
     modal.classList.add("active");
@@ -712,6 +732,11 @@ export class NovedadesView {
 
     let motivo = selMot.value;
     let codigoSapTemporal = null;
+
+    if (!motivo) {
+      alert("Por favor seleccioná un motivo.");
+      return;
+    }
 
     if (motivo === "OTRO") {
       motivo = inpMotOtro.value.trim();

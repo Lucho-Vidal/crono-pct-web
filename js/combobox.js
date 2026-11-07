@@ -81,6 +81,13 @@ export class ComboboxSelect {
     document.addEventListener('click', (e) => {
       if (!this.wrapper.contains(e.target)) {
         this.cerrar();
+        if (this.inputEl.value.trim() === '') {
+          const optVacia = Array.from(this.selectEl.options).find(o => !o.value);
+          if (optVacia) {
+            this.seleccionarOpcion(optVacia.value);
+            return;
+          }
+        }
         // Restaurar el texto de la opción seleccionada actualmente si el usuario no eligió ninguna
         this.sincronizarDesdeSelect();
       }
@@ -93,6 +100,13 @@ export class ComboboxSelect {
         this.sincronizarDesdeSelect();
       } else if (e.key === 'Enter') {
         e.preventDefault();
+        if (this.inputEl.value.trim() === '') {
+          const optVacia = Array.from(this.selectEl.options).find(o => !o.value);
+          if (optVacia) {
+            this.seleccionarOpcion(optVacia.value);
+            return;
+          }
+        }
         const primeraVisible = this.dropdownEl.querySelector('.combobox-option:not([style*="display: none"])');
         if (primeraVisible) {
           this.seleccionarOpcion(primeraVisible.dataset.value);
@@ -122,7 +136,7 @@ export class ComboboxSelect {
     const options = Array.from(this.selectEl.options);
 
     options.forEach((opt) => {
-      if (!opt.value && opt.text.trim().startsWith('--')) {
+      if (!opt.value && opt.text.trim().startsWith('--') && !opt.text.toLowerCase().includes('ninguno')) {
         // Opción placeholder inicial si existe
         return;
       }
@@ -188,6 +202,8 @@ export class ComboboxSelect {
   sincronizarDesdeSelect() {
     const selOpt = this.selectEl.selectedOptions[0];
     if (selOpt && selOpt.value) {
+      this.inputEl.value = selOpt.text.trim();
+    } else if (selOpt && selOpt.text && selOpt.text.toLowerCase().includes('ninguno')) {
       this.inputEl.value = selOpt.text.trim();
     } else {
       this.inputEl.value = '';
