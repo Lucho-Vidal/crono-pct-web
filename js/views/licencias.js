@@ -660,7 +660,23 @@ export class LicenciasView {
         updated_at: ahoraIso
       };
 
-      const { data: novData, error: novErr } = await client.from('novedades').insert(payloadNov).select();
+      let nextId = await this.store.obtenerSiguienteIdNovedades(1);
+      payloadNov.id = nextId;
+
+      let novData = null;
+      let novErr = null;
+      for (let intento = 0; intento < 3; intento++) {
+        const res = await client.from('novedades').insert(payloadNov).select();
+        novData = res.data;
+        novErr = res.error;
+        if (!novErr) break;
+        if (novErr.message && novErr.message.includes('duplicate key') && novErr.message.includes('novedades_pkey')) {
+          nextId = await this.store.obtenerSiguienteIdNovedades(1);
+          payloadNov.id = nextId + intento + 1;
+        } else {
+          throw novErr;
+        }
+      }
       if (novErr) throw novErr;
 
       if (novData && novData.length > 0) {
@@ -969,14 +985,30 @@ export class LicenciasView {
     };
 
     try {
-      const { data: novData, error: novErr } = await client.from('novedades').insert(payload).select();
+      let nextId = await this.store.obtenerSiguienteIdNovedades(1);
+      payload.id = nextId;
+
+      let novData = null;
+      let novErr = null;
+      for (let intento = 0; intento < 3; intento++) {
+        const res = await client.from('novedades').insert(payload).select();
+        novData = res.data;
+        novErr = res.error;
+        if (!novErr) break;
+        if (novErr.message && novErr.message.includes('duplicate key') && novErr.message.includes('novedades_pkey')) {
+          nextId = await this.store.obtenerSiguienteIdNovedades(1);
+          payload.id = nextId + intento + 1;
+        } else {
+          throw novErr;
+        }
+      }
       if (novErr) throw novErr;
 
       if (novData && novData.length > 0) {
         this.store.novedades.unshift(novData[0]);
         await this.store.auditar('novedades', 'CREACIÓN', novData[0].id, null, novData[0]);
       } else {
-        this.store.novedades.unshift({ ...payload, id: Date.now() });
+        this.store.novedades.unshift({ ...payload, id: payload.id || Date.now() });
       }
 
       this.store.guardarCacheLocal();

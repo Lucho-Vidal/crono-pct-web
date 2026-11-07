@@ -633,6 +633,32 @@ export class WebDataStore {
     }
   }
 
+  // Generador seguro de IDs para novedades ante desincronización de secuencias en Supabase
+  async obtenerSiguienteIdNovedades(cantidad = 1) {
+    let maxId = 0;
+    if (this.novedades && this.novedades.length > 0) {
+      for (const n of this.novedades) {
+        const nid = Number(n.id);
+        if (!isNaN(nid) && nid > maxId) maxId = nid;
+      }
+    }
+    const client = getSupabaseClient();
+    try {
+      const { data, error } = await client
+        .from('novedades')
+        .select('id')
+        .order('id', { ascending: false })
+        .limit(1);
+      if (!error && data && data.length > 0) {
+        const topId = Number(data[0].id);
+        if (!isNaN(topId) && topId > maxId) maxId = topId;
+      }
+    } catch (e) {
+      console.warn("No se pudo consultar el MAX(id) remoto de novedades:", e);
+    }
+    return maxId + 1;
+  }
+
   // RBAC: Verificación si el rol actual es Administrador Total
   esAdmin() {
     const session = getSession();

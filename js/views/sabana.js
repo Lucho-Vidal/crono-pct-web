@@ -789,10 +789,26 @@ export class SabanaView {
         updated_at: ahoraIso
       };
 
-      const { data, error } = await client.from('novedades').insert(payload).select();
-      if (!error && data && data.length > 0) {
-        this.store.novedades.unshift(data[0]);
-        await this.store.auditar('novedades', 'CREACIÓN', data[0].id, null, data[0]);
+      let nextId = await this.store.obtenerSiguienteIdNovedades(1);
+      payload.id = nextId;
+
+      let insertData = null;
+      let insertErr = null;
+      for (let intento = 0; intento < 3; intento++) {
+        const res = await client.from('novedades').insert(payload).select();
+        insertData = res.data;
+        insertErr = res.error;
+        if (!insertErr) break;
+        if (insertErr.message && insertErr.message.includes('duplicate key') && insertErr.message.includes('novedades_pkey')) {
+          nextId = await this.store.obtenerSiguienteIdNovedades(1);
+          payload.id = nextId + intento + 1;
+        } else {
+          break;
+        }
+      }
+      if (!insertErr && insertData && insertData.length > 0) {
+        this.store.novedades.unshift(insertData[0]);
+        await this.store.auditar('novedades', 'CREACIÓN', insertData[0].id, null, insertData[0]);
       }
     }
 

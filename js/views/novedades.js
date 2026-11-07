@@ -782,15 +782,31 @@ export class NovedadesView {
         }
       } else {
         // INSERT
-        const { data, error } = await client
-          .from('novedades')
-          .insert(payload)
-          .select();
+        let nextId = await this.store.obtenerSiguienteIdNovedades(1);
+        payload.id = nextId;
 
-        if (error) throw error;
-        if (data && data.length > 0) {
-          this.store.novedades.unshift(data[0]);
-          await this.store.auditar('novedades', 'CREACIÓN', data[0].id, null, data[0]);
+        let insertData = null;
+        let insertErr = null;
+        for (let intento = 0; intento < 3; intento++) {
+          const res = await client
+            .from('novedades')
+            .insert(payload)
+            .select();
+          insertData = res.data;
+          insertErr = res.error;
+          if (!insertErr) break;
+          if (insertErr.message && insertErr.message.includes('duplicate key') && insertErr.message.includes('novedades_pkey')) {
+            nextId = await this.store.obtenerSiguienteIdNovedades(1);
+            payload.id = nextId + intento + 1;
+          } else {
+            throw insertErr;
+          }
+        }
+        if (insertErr) throw insertErr;
+
+        if (insertData && insertData.length > 0) {
+          this.store.novedades.unshift(insertData[0]);
+          await this.store.auditar('novedades', 'CREACIÓN', insertData[0].id, null, insertData[0]);
         }
       }
 
@@ -1107,15 +1123,34 @@ export class NovedadesView {
     };
 
     try {
-      const { data, error } = await client
-        .from('novedades')
-        .insert([payload1, payload2])
-        .select();
+      // Asignar IDs calculados de forma segura para evitar colisión de secuencia en Supabase
+      let nextId = await this.store.obtenerSiguienteIdNovedades(2);
+      payload1.id = nextId;
+      payload2.id = nextId + 1;
 
-      if (error) throw error;
+      let insertData = null;
+      let insertErr = null;
 
-      if (data && data.length > 0) {
-        for (const novCreada of data) {
+      for (let intento = 0; intento < 3; intento++) {
+        const res = await client
+          .from('novedades')
+          .insert([payload1, payload2])
+          .select();
+        insertData = res.data;
+        insertErr = res.error;
+        if (!insertErr) break;
+        if (insertErr.message && insertErr.message.includes('duplicate key') && insertErr.message.includes('novedades_pkey')) {
+          nextId = await this.store.obtenerSiguienteIdNovedades(2);
+          payload1.id = nextId + intento + 2;
+          payload2.id = nextId + intento + 3;
+        } else {
+          throw insertErr;
+        }
+      }
+      if (insertErr) throw insertErr;
+
+      if (insertData && insertData.length > 0) {
+        for (const novCreada of insertData) {
           this.store.novedades.unshift(novCreada);
           await this.store.auditar('novedades', 'CREACIÓN', novCreada.id, null, novCreada);
         }
