@@ -1,6 +1,6 @@
 // views/sabana.js - Vista Principal Sábana de Turnos con Columnas Fijas y Acceso Rápido
 import { calcularCelda, parseFechaISO } from '../engine_turnos.js';
-import { getSupabaseClient } from '../supabase.js';
+import { getSupabaseClient, getSession } from '../supabase.js';
 import { habilitarOcultarLegajoEnScroll } from '../combobox.js';
 
 export class SabanaView {
@@ -768,6 +768,8 @@ export class SabanaView {
       porLegajo[it.legajo].push(it.fecha);
     });
 
+    const session = getSession();
+    const usuarioActual = (session && session.username) ? session.username : 'admin';
     const client = getSupabaseClient();
     const ahoraIso = new Date().toISOString();
 
@@ -784,6 +786,8 @@ export class SabanaView {
         tipo_color: tipoColor,
         color_hex: colorHex,
         observaciones: `Acceso rápido desde CRONO-WEB`,
+        creado_por: usuarioActual,
+        modificado_por: usuarioActual,
         activo: true,
         sync_status: 'synced',
         updated_at: ahoraIso

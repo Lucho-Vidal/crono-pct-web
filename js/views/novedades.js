@@ -1,6 +1,6 @@
 // views/novedades.js - Explorador CRUD de Novedades con Color y Cobertura SAP
 import { parseFechaISO, asignacionEn } from '../engine_turnos.js';
-import { getSupabaseClient } from '../supabase.js';
+import { getSupabaseClient, getSession } from '../supabase.js';
 import { ComboboxSelect } from '../combobox.js';
 
 export class NovedadesView {
@@ -156,6 +156,7 @@ export class NovedadesView {
               <label>Observaciones:</label>
               <textarea id="nov-form-obs" rows="2" placeholder="Observaciones o justificativo opcional..."></textarea>
             </div>
+            <div id="nov-form-trazabilidad" style="display: none; font-size: 11px; color: #475569; margin-top: 6px; padding: 6px 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px;"></div>
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" id="btn-cancelar-modal-novedad">Cancelar</button>
@@ -699,6 +700,18 @@ export class NovedadesView {
       this.comboboxLegajoReemplazado.actualizar();
     }
 
+    const divTraza = this.container.querySelector("#nov-form-trazabilidad");
+    if (divTraza) {
+      if (esEdicion) {
+        const cPor = novedad.creado_por || "admin";
+        const mPor = novedad.modificado_por || cPor;
+        divTraza.innerHTML = `👤 <b>Cargado por:</b> ${cPor} | <b>Última edición:</b> ${mPor}`;
+        divTraza.style.display = "block";
+      } else {
+        divTraza.style.display = "none";
+      }
+    }
+
     modal.classList.add("active");
   }
 
@@ -772,6 +785,8 @@ export class NovedadesView {
       return;
     }
 
+    const session = getSession();
+    const usuarioActual = (session && session.username) ? session.username : 'admin';
     const client = getSupabaseClient();
     const ahoraIso = new Date().toISOString();
 
@@ -785,6 +800,7 @@ export class NovedadesView {
       codigo_sap_temporal: codigoSapTemporal || null,
       legajo_reemplazado: selLegReemp.value ? selLegReemp.value.trim() : null,
       observaciones: txtObs.value.trim() || null,
+      modificado_por: usuarioActual,
       activo: true,
       sync_status: 'synced',
       updated_at: ahoraIso
@@ -809,6 +825,7 @@ export class NovedadesView {
         // INSERT
         let nextId = await this.store.obtenerSiguienteIdNovedades(1);
         payload.id = nextId;
+        payload.creado_por = usuarioActual;
 
         let insertData = null;
         let insertErr = null;
@@ -862,6 +879,8 @@ export class NovedadesView {
       if (!confirm(mensaje)) return;
     }
 
+    const session = getSession();
+    const usuarioActual = (session && session.username) ? session.username : 'admin';
     const client = getSupabaseClient();
     const ahoraIso = new Date().toISOString();
 
@@ -869,7 +888,7 @@ export class NovedadesView {
       // Baja lógica
       const { data, error } = await client
         .from('novedades')
-        .update({ activo: false, sync_status: 'synced', updated_at: ahoraIso })
+        .update({ activo: false, modificado_por: usuarioActual, sync_status: 'synced', updated_at: ahoraIso })
         .eq('id', id)
         .select();
 
@@ -892,6 +911,7 @@ export class NovedadesView {
       const idx = this.store.novedades.findIndex(n => n.id === id);
       if (idx !== -1) {
         this.store.novedades[idx].activo = false;
+        this.store.novedades[idx].modificado_por = usuarioActual;
         this.store.novedades[idx].updated_at = ahoraIso;
       }
 
@@ -917,19 +937,22 @@ export class NovedadesView {
       return;
     }
 
+    const session = getSession();
+    const usuarioActual = (session && session.username) ? session.username : 'admin';
     const client = getSupabaseClient();
     const ahoraIso = new Date().toISOString();
 
     try {
       const { data, error } = await client
         .from('novedades')
-        .update({ activo: true, sync_status: 'synced', updated_at: ahoraIso })
+        .update({ activo: true, modificado_por: usuarioActual, sync_status: 'synced', updated_at: ahoraIso })
         .eq('id', id)
         .select();
 
       if (error) throw error;
 
       nov.activo = true;
+      nov.modificado_por = usuarioActual;
       nov.updated_at = ahoraIso;
 
       await this.store.auditar('novedades', 'REACTIVACIÓN', id, { activo: false }, { activo: true });
@@ -1114,6 +1137,8 @@ export class NovedadesView {
     const obs1 = `Cambio de turno con [${leg2}] ${nom2}${obsExtra}`;
     const obs2 = `Cambio de turno con [${leg1}] ${nom1}${obsExtra}`;
 
+    const session = getSession();
+    const usuarioActual = (session && session.username) ? session.username : 'admin';
     const client = getSupabaseClient();
     const ahoraIso = new Date().toISOString();
 
@@ -1127,6 +1152,8 @@ export class NovedadesView {
       codigo_sap_temporal: asig2.codigo_sap,
       legajo_reemplazado: leg2,
       observaciones: obs1,
+      creado_por: usuarioActual,
+      modificado_por: usuarioActual,
       activo: true,
       sync_status: "synced",
       updated_at: ahoraIso
@@ -1142,6 +1169,8 @@ export class NovedadesView {
       codigo_sap_temporal: asig1.codigo_sap,
       legajo_reemplazado: leg1,
       observaciones: obs2,
+      creado_por: usuarioActual,
+      modificado_por: usuarioActual,
       activo: true,
       sync_status: "synced",
       updated_at: ahoraIso

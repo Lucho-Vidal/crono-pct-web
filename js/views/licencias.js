@@ -1,6 +1,6 @@
 // views/licencias.js - Gestión de Saldos, Diagramador de Vacaciones y Control RRHH
 import { calcularCeldaDiagramador, parseFechaISO } from '../engine_turnos.js';
-import { getSupabaseClient } from '../supabase.js';
+import { getSupabaseClient, getSession } from '../supabase.js';
 import { habilitarOcultarLegajoEnScroll, ComboboxSelect } from '../combobox.js';
 
 export class LicenciasView {
@@ -643,6 +643,9 @@ export class LicenciasView {
       }
 
       // 3. Crear novedad oficial
+      const session = getSession();
+      const usuarioActual = (session && session.username) ? session.username : 'admin';
+
       const payloadNov = {
         legajo: leg,
         fecha_inicio: fIni,
@@ -654,6 +657,8 @@ export class LicenciasView {
         cantidad_dias: dias,
         fecha_reincorporacion: inpVuelve.value || null,
         observaciones: inpObs.value.trim() || null,
+        creado_por: usuarioActual,
+        modificado_por: usuarioActual,
         enviado_rrhh: false,
         activo: true,
         sync_status: 'synced',
@@ -967,6 +972,9 @@ export class LicenciasView {
 
     const client = getSupabaseClient();
     const ahoraIso = new Date().toISOString();
+    const session = getSession();
+    const usuarioActual = (session && session.username) ? session.username : 'admin';
+
     const payload = {
       legajo: leg,
       fecha_inicio: fIni,
@@ -978,6 +986,8 @@ export class LicenciasView {
       color_hex: "#ddd6fe",
       periodo_imputado: "PRE-DIAGRAMA",
       observaciones: obs || `Reserva Vacaciones (${dias} días) [PRE-DIAGRAMA]`,
+      creado_por: usuarioActual,
+      modificado_por: usuarioActual,
       enviado_rrhh: false,
       activo: true,
       sync_status: 'synced',
@@ -1249,6 +1259,8 @@ export class LicenciasView {
     const nov = this.store.novedades.find(n => n.id === novedadId);
     if (!nov) return;
 
+    const session = getSession();
+    const usuarioActual = (session && session.username) ? session.username : 'admin';
     const client = getSupabaseClient();
     const ahoraIso = new Date().toISOString();
     const fechaEnvio = enviado ? ahoraIso : null;
@@ -1258,6 +1270,7 @@ export class LicenciasView {
         .update({
           enviado_rrhh: enviado,
           fecha_envio_rrhh: fechaEnvio,
+          modificado_por: usuarioActual,
           updated_at: ahoraIso
         })
         .eq('id', novedadId);
@@ -1266,6 +1279,7 @@ export class LicenciasView {
 
       nov.enviado_rrhh = enviado;
       nov.fecha_envio_rrhh = fechaEnvio;
+      nov.modificado_por = usuarioActual;
       this.store.guardarCacheLocal();
       await this.store.auditar('novedades', 'CONTROL RRHH', novedadId, { enviado_rrhh: !enviado }, { enviado_rrhh: enviado, fecha_envio_rrhh: fechaEnvio });
 
