@@ -1,0 +1,18 @@
+{
+  "version": "1.7.0",
+  "fecha": "07/11/2026",
+  "titulo": "Intercambio de Turnos SAP entre Agentes, Historial y Carga Masiva de Horas Extra/MF con Exportación PDF y Alerta Silenciosa de Licencias",
+  "novedades": [
+    "[Operación] Intercambio de Turnos SAP entre dos personales: funcionalidad sincronizada bidireccional desde la barra de Novedades y el menú contextual de la Sábana, con cálculo de fechas, confirmación de turnos idénticos y permisos RBAC (Desktop y Web).",
+    "[Seguridad] Alerta Silenciosa de Expiración de Licencia: monitoreo proactivo a 30 días de la caducidad del token Ed25519 con envío sin rastro vía Outlook a lucianovidal.dev@gmail.com, capturando telemetría de auditoría (Usuario App, Usuario Windows, Hostname PC e IP local).",
+    "[Horas Extra] Historial y Carga Masiva de Horas Extra: nuevo panel de filtrado avanzado por rango de fechas y personal, tarjetas con métricas en tiempo real (horas 50%, 100% y total), y diálogo de carga múltiple para asentar recargos a varios agentes simultáneamente con detección automática de francos en D+1.",
+    "[Reportes PDF] Exportación oficial a PDF para Horas Extra y Mayor Función (Relevos): planillas institucionales A4 apaisadas generadas con ReportLab, con filtro por período, totales en formato HH:MM, ordenamiento estricto por fecha y legajo, y bloques reglamentarios de firmas.",
+    "[Empaquetado] Blindaje de empaquetado PyInstaller: integración de runtime hook para desacoplar dependencias inexistentes de NumPy y asegurar inicio limpio de openpyxl en el ejecutable congelado."
+  ],
+  "instalador_nombre": "CRONO_Setup_v1.7.0.exe",
+  "instalador_url": "https://lucho-vidal.github.io/crono-pct-web/updates/CRONO_Setup_v1.7.0.exe",
+  "sha256": "",
+  "tamano_bytes": 0,
+  "obligatoria": true,
+  "min_version_permitida": "1.6.0"
+}
