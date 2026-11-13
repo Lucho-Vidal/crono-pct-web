@@ -1,18 +1,17 @@
 {
-  "version": "1.7.1",
-  "fecha": "11/11/2026",
-  "titulo": "Sistema de Actualizaciones Automáticas (Auto-Updater OTA) y Comprobación en Segundo Plano",
+  "version": "1.7.2",
+  "fecha": "13/11/2026",
+  "titulo": "Soporte de Proxy Corporativo en Auto-Updater, Descargas Multi-Parte (50 MB) y Endurecimiento 2FA",
   "novedades": [
-    "[Actualización] Auto-Updater Integrado: comprobación asíncrona no invasiva a 5 segundos del inicio y botón manual '🔍 Buscar Actualizaciones...' en el menú Changelog.",
-    "[Operación] Descarga asistida con barra de progreso en tiempo real: cálculo de porcentaje, tamaño en MB, velocidad de transferencia (KB/s y MB/s) y compatibilidad con proxy corporativo (proxy.py).",
-    "[Seguridad] Verificación criptográfica de integridad SHA-256 del instalador descargado en %TEMP%\\CRONO_Updates antes de su ejecución para evitar binarios corruptos o incompletos.",
-    "[Instalación] Instalación desatendida y relanzamiento automático: invocación silenciosa de Inno Setup (/SILENT) sin requerir permisos de Administrador de Windows (PrivilegesRequired=lowest) y reinicio coordinado de la aplicación.",
-    "[Distribución] Script CLI scripts/publicar_actualizacion.py e instructivo oficial INSTRUCTIVO_PUBLICAR_ACTUALIZACIONES.md para empaquetado y subida a Supabase Storage bucket 'updates'."
+    "[Red / Actualización] Auto-Updater compatible con Proxy Corporativo (SSO/NTLM y Proxy Manual): verificación de manifiesto, descarga en streaming con progreso/cancelación y publicación CLI canalizadas vía src/proxy.py (incluyendo fallback WinHTTP/PowerShell y corrección de configuración en ChangelogDialog).",
+    "[Empaquetado] Optimización de compresión Inno Setup (lzma2/ultra64) y soporte de instalación dividida en múltiples partes (.part1, .part2) para cumplir el límite de 50 MB en Supabase Storage Free Tier.",
+    "[Seguridad] Endurecimiento de Autenticación de Dos Factores (2FA / TOTP) y gestión de dispositivos confiables en Supabase y CRONO-WEB."
   ],
-  "instalador_nombre": "CRONO_Setup_v1.7.1.exe",
-  "instalador_url": "https://lucho-vidal.github.io/crono-pct-web/updates/CRONO_Setup_v1.7.1.exe",
+  "instalador_nombre": "CRONO_Setup_v1.7.2.exe",
+  "instalador_url": "https://lucho-vidal.github.io/crono-pct-web/updates/CRONO_Setup_v1.7.2.exe",
   "sha256": "",
   "tamano_bytes": 0,
   "obligatoria": false,
-  "min_version_permitida": "1.6.0"
+  "min_version_permitida": "1.6.0",
+  "partes": []
 }
