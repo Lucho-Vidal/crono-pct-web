@@ -176,9 +176,9 @@
         </div>
 
         <div class="form-group" style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-          <input type="checkbox" id="totp-confiar-dispositivo" checked style="width: 16px; height: 16px; cursor: pointer;">
+          <input type="checkbox" id="totp-confiar-dispositivo" style="width: 16px; height: 16px; cursor: pointer;">
           <label for="totp-confiar-dispositivo" style="font-size: 12px; color: var(--text); cursor: pointer; user-select: none;">
-            Confiar en este dispositivo (no volver a pedir)
+            Confiar en este dispositivo por 30 días (no pedir código aquí)
           </label>
         </div>
 
@@ -320,6 +320,18 @@
             <button type="button" class="btn btn-secondary btn-pill" id="btn-toggle-biometria-local" style="font-size: 11px; padding: 4px 10px;">
               Administrar
             </button>
+          </div>
+
+          <div style="border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 600;">Dispositivos con confianza 2FA activa</span>
+              <button type="button" class="btn btn-danger btn-pill" id="btn-revocar-todos-dispositivos" style="display: none; font-size: 10px; padding: 3px 8px;">
+                🗑️ Revocar todos
+              </button>
+            </div>
+            <div id="trusted-devices-list" style="font-size: 11px; color: var(--text-muted);">
+              Consultando dispositivos...
+            </div>
           </div>
         </div>
       </div>

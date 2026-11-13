@@ -12,21 +12,51 @@ const STORAGE_KEY_LOCKOUT = "crono_web_login_lockout";
 const STORAGE_KEY_DEVICE = "crono_device_fingerprint";
 
 // Generador e identificador único de huella de dispositivo persistente
+let ephemeralDeviceId = null;
+
+function generarDeviceUuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'dev_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now().toString(36);
+}
+
 export function getDeviceFingerprint() {
   try {
     let fp = localStorage.getItem(STORAGE_KEY_DEVICE);
-    if (!fp) {
-      // Generar UUID v4 criptográfico
-      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        fp = crypto.randomUUID();
-      } else {
-        fp = 'dev_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now().toString(36);
-      }
+    if (!fp || fp === 'crono_browser_generic' || fp.length < 8) {
+      fp = generarDeviceUuid();
       localStorage.setItem(STORAGE_KEY_DEVICE, fp);
     }
     return fp;
   } catch (e) {
-    return 'crono_browser_generic';
+    if (!ephemeralDeviceId) {
+      ephemeralDeviceId = 'ephem_' + generarDeviceUuid();
+    }
+    return ephemeralDeviceId;
+  }
+}
+
+export function detectarNombreDispositivo() {
+  try {
+    const ua = navigator.userAgent || '';
+    let browser = 'Navegador Web';
+    if (/Edg\//i.test(ua)) browser = 'Edge';
+    else if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) browser = 'Chrome';
+    else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+    else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser = 'Safari';
+
+    let os = 'Equipo';
+    if (/iPhone/i.test(ua)) os = 'iPhone';
+    else if (/iPad/i.test(ua)) os = 'iPad';
+    else if (/Android/i.test(ua)) os = 'Android';
+    else if (/Windows/i.test(ua)) os = 'Windows';
+    else if (/Mac OS/i.test(ua)) os = 'macOS';
+    else if (/Linux/i.test(ua)) os = 'Linux';
+
+    return `${browser} (${os})`;
+  } catch (e) {
+    return 'Navegador Web';
   }
 }
 
@@ -272,6 +302,43 @@ export async function autenticarUsuario(username, password) {
       }
 
       if (data.username) {
+        // Defensa en profundidad: si una versión antigua de fn_autenticar_usuario en Supabase
+        // no devolvió totp_chequeado=true, verificar manualmente antes de emitir sesión.
+        if (data.totp_chequeado !== true) {
+          try {
+            const cfg = getConfig();
+            const tmpClient = createClient(cfg.supabase_url, cfg.supabase_anon_key, {
+              auth: { persistSession: false },
+              global: {
+                headers: {
+                  'x-crono-user': data.username,
+                  'x-crono-auth': data.session_token || data.auth_token || ''
+                }
+              }
+            });
+            const { data: uRow } = await tmpClient
+              .from('usuarios_app')
+              .select('username, totp_activo, totp_secret, dispositivos_confianza')
+              .ilike('username', data.username)
+              .maybeSingle();
+
+            if (uRow && uRow.totp_activo === true && uRow.totp_secret && String(uRow.totp_secret).trim() !== '') {
+              const devs = Array.isArray(uRow.dispositivos_confianza) ? uRow.dispositivos_confianza : [];
+              const esConfiable = esDispositivoTotpVigente(devs, deviceId);
+              if (!esConfiable) {
+                await tmpClient.rpc('fn_cerrar_sesion').catch(() => {});
+                return {
+                  requiere_totp: true,
+                  username: uRow.username || data.username,
+                  mensaje: "Se requiere código de Google Authenticator para este dispositivo."
+                };
+              }
+            }
+          } catch (checkErr) {
+            console.warn("No se pudo verificar estado TOTP adicional:", checkErr);
+          }
+        }
+
         limpiarIntentosFallidos();
         const userSession = {
           username: data.username,
@@ -319,10 +386,10 @@ export async function autenticarUsuario(username, password) {
     throw new Error("Contraseña / PIN incorrecto.");
   }
 
-  // Si tiene TOTP activo, verificar si este dispositivo ya es de confianza
-  if (user.totp_activo === true && user.totp_secret) {
+  // Si tiene TOTP activo, verificar si este dispositivo ya es de confianza vigente
+  if (user.totp_activo === true && user.totp_secret && String(user.totp_secret).trim() !== '') {
     const devs = Array.isArray(user.dispositivos_confianza) ? user.dispositivos_confianza : [];
-    const esConfiable = devs.some(d => d && d.device_id === deviceId);
+    const esConfiable = esDispositivoTotpVigente(devs, deviceId);
     if (!esConfiable) {
       return {
         requiere_totp: true,
@@ -346,11 +413,31 @@ export async function autenticarUsuario(username, password) {
   return userSession;
 }
 
+function esDispositivoTotpVigente(devs, deviceId) {
+  if (!deviceId || deviceId === 'crono_browser_generic' || String(deviceId).length < 8) {
+    return false;
+  }
+  const limiteMs = 30 * 24 * 60 * 60 * 1000; // 30 días
+  const ahora = Date.now();
+  return devs.some(d => {
+    if (!d || d.device_id !== deviceId || d.device_id === 'crono_browser_generic') return false;
+    const verificado = d.totp_verificado !== undefined ? Boolean(d.totp_verificado) : !d.credential_id;
+    if (!verificado) return false;
+    const fechaRef = d.totp_confiado_en || d.creado_en;
+    if (fechaRef) {
+      const ts = Date.parse(fechaRef);
+      if (!isNaN(ts) && (ahora - ts) > limiteMs) return false;
+    }
+    return true;
+  });
+}
+
 // 5.1 Validación y Registro TOTP (Google Authenticator)
-export async function verificarTotpUsuario(username, codigoTotp, confiarDispositivo = true, nombreDispositivo = "Navegador Web") {
+export async function verificarTotpUsuario(username, codigoTotp, confiarDispositivo = false, nombreDispositivo = null) {
   const u = String(username || "").trim();
   const c = String(codigoTotp || "").replace(/\s+/g, '');
   const deviceId = getDeviceFingerprint();
+  const deviceName = String(nombreDispositivo || detectarNombreDispositivo() || 'Navegador Web');
 
   if (!u || !c) {
     throw new Error("Por favor ingresá el código de 6 dígitos.");
@@ -362,7 +449,7 @@ export async function verificarTotpUsuario(username, codigoTotp, confiarDisposit
     p_totp_code: c,
     p_device_id: deviceId,
     p_confiar_dispositivo: Boolean(confiarDispositivo),
-    p_device_nombre: String(nombreDispositivo || 'Navegador Web')
+    p_device_nombre: deviceName
   });
 
   if (error) {
@@ -415,7 +502,7 @@ export async function registrarDispositivoConfiable(username, deviceName = "Nave
     const { data, error } = await client.rpc('fn_registrar_dispositivo_confiable', {
       p_username: u,
       p_device_id: deviceId,
-      p_device_name: String(deviceName || "Navegador Web"),
+      p_device_name: String(deviceName || detectarNombreDispositivo() || "Navegador Web"),
       p_credential_id: credentialId,
       p_public_key: publicKey
     });
@@ -481,16 +568,51 @@ export async function consultarEstadoSeguridadUsuario(username) {
   const u = String(username || "").trim();
   const client = getSupabaseClient();
   try {
-    const { data, error } = await client
+    const { data, error } = await client.rpc('fn_estado_seguridad_usuario', {
+      p_username: u
+    });
+    if (!error && data) {
+      return data;
+    }
+
+    // Fallback si la RPC aún no fue instalada en Supabase
+    const { data: row, error: qErr } = await client
       .from('usuarios_app')
-      .select('username, totp_activo, dispositivos_confianza')
-      .eq('username', u)
-      .single();
-    if (error) return null;
-    return data;
+      .select('username, totp_activo, totp_secret, dispositivos_confianza')
+      .ilike('username', u)
+      .maybeSingle();
+    if (qErr || !row) return null;
+    const devs = Array.isArray(row.dispositivos_confianza) ? row.dispositivos_confianza : [];
+    return {
+      username: row.username,
+      totp_activo: Boolean(row.totp_activo && row.totp_secret && String(row.totp_secret).trim() !== ''),
+      dispositivos_confianza: devs
+        .filter(d => d && d.device_id && d.device_id !== 'crono_browser_generic')
+        .map(d => ({
+          device_id: d.device_id,
+          nombre: d.nombre || 'Navegador Web',
+          creado_en: d.creado_en || null,
+          ultimo_acceso: d.ultimo_acceso || null,
+          totp_verificado: d.totp_verificado !== undefined ? Boolean(d.totp_verificado) : !d.credential_id,
+          tiene_biometria: Boolean(d.credential_id)
+        }))
+    };
   } catch (e) {
     return null;
   }
+}
+
+export async function revocarDispositivoConfiable(username, deviceId = null) {
+  const u = String(username || "").trim();
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc('fn_revocar_dispositivo_confiable', {
+    p_username: u,
+    p_device_id: deviceId ? String(deviceId).trim() : null
+  });
+  if (error) {
+    throw new Error(error.message || "Error al revocar dispositivo de confianza.");
+  }
+  return data;
 }
 
 // 6. DataStore en Memoria + Caché Offline en LocalStorage

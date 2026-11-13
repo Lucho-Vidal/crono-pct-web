@@ -1,5 +1,5 @@
-// Service Worker para CRONO-WEB (PWA v1.0.0)
-const CACHE_NAME = 'crono-pwa-v1.0.0';
+// Service Worker para CRONO-WEB (PWA v1.1.0)
+const CACHE_NAME = 'crono-pwa-v1.1.0';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -8,6 +8,8 @@ const ASSETS_TO_CACHE = [
   './css/styles.css',
   './js/app.js',
   './js/supabase.js',
+  './js/webauthn.js',
+  './js/qrcode.min.js',
   './js/engine_turnos.js',
   './js/combobox.js',
   './js/views/sabana.js',
@@ -88,22 +90,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Activos propios (App Shell): Stale-While-Revalidate
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
+  // Activos propios (App Shell): Network-First con fallback a caché para aplicar cambios de seguridad de inmediato
+  if (event.request.method !== 'GET') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
-      return cachedResponse || fetchPromise;
-    })
+  event.respondWith(
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && url.origin === self.location.origin) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

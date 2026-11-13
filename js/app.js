@@ -8,6 +8,8 @@ import {
   autenticarPorDispositivoBiometrico,
   configurarTotp,
   consultarEstadoSeguridadUsuario,
+  revocarDispositivoConfiable,
+  getDeviceFingerprint,
   getSession, 
   clearSession, 
   getConfig, 
@@ -273,6 +275,13 @@ class AppController {
       });
     }
 
+    // Eventos del formulario TOTP (Google Authenticator)
+    const totpForm = document.getElementById('totp-form');
+    const totpCode = document.getElementById('totp-code');
+    const totpConfiar = document.getElementById('totp-confiar-dispositivo');
+    const btnTotpSubmit = document.getElementById('btn-totp-submit');
+    const btnTotpVolver = document.getElementById('btn-totp-volver');
+
     if (form) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -292,6 +301,7 @@ class AppController {
             form.style.display = 'none';
             if (totpForm) {
               totpForm.style.display = 'block';
+              if (totpConfiar) totpConfiar.checked = false;
               if (totpCode) {
                 totpCode.value = '';
                 totpCode.focus();
@@ -300,6 +310,7 @@ class AppController {
             return;
           }
 
+          this.usuarioPendienteTotp = null;
           this.ocultarPantallaLogin();
           await this.iniciarSistema(res);
           this.consultarActivacionBiometrica(res);
@@ -316,13 +327,6 @@ class AppController {
       });
     }
 
-    // Eventos del formulario TOTP (Google Authenticator)
-    const totpForm = document.getElementById('totp-form');
-    const totpCode = document.getElementById('totp-code');
-    const totpConfiar = document.getElementById('totp-confiar-dispositivo');
-    const btnTotpSubmit = document.getElementById('btn-totp-submit');
-    const btnTotpVolver = document.getElementById('btn-totp-volver');
-
     if (totpForm) {
       totpForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -334,11 +338,14 @@ class AppController {
           const user = await verificarTotpUsuario(
             this.usuarioPendienteTotp || inpUser.value,
             totpCode.value,
-            totpConfiar ? totpConfiar.checked : true
+            totpConfiar ? totpConfiar.checked : false
           );
+          this.usuarioPendienteTotp = null;
+          if (totpCode) totpCode.value = '';
+          if (totpConfiar) totpConfiar.checked = false;
           this.ocultarPantallaLogin();
           totpForm.style.display = 'none';
-          form.style.display = 'block';
+          if (form) form.style.display = 'block';
           await this.iniciarSistema(user);
           this.consultarActivacionBiometrica(user);
         } catch (err) {
@@ -353,6 +360,9 @@ class AppController {
 
     if (btnTotpVolver) {
       btnTotpVolver.addEventListener('click', () => {
+        this.usuarioPendienteTotp = null;
+        if (totpCode) totpCode.value = '';
+        if (totpConfiar) totpConfiar.checked = false;
         if (totpForm) totpForm.style.display = 'none';
         if (form) form.style.display = 'block';
         errBox.style.display = 'none';
@@ -432,8 +442,15 @@ class AppController {
     if (btnCfg) btnCfg.style.display = 'none';
 
     // 2. Limpiar formularios de login
+    this.usuarioPendienteTotp = null;
     const inpPass = document.getElementById('login-password');
     if (inpPass) inpPass.value = '';
+
+    const totpCodeInp = document.getElementById('totp-code');
+    if (totpCodeInp) totpCodeInp.value = '';
+
+    const totpConfiarChk = document.getElementById('totp-confiar-dispositivo');
+    if (totpConfiarChk) totpConfiarChk.checked = false;
 
     const totpForm = document.getElementById('totp-form');
     if (totpForm) totpForm.style.display = 'none';
@@ -555,9 +572,96 @@ class AppController {
 
     const bioStatus = document.getElementById('biometric-local-status');
     const btnToggleBio = document.getElementById('btn-toggle-biometria-local');
+    const trustedDevicesList = document.getElementById('trusted-devices-list');
+    const btnRevocarTodos = document.getElementById('btn-revocar-todos-dispositivos');
 
     let currentOtpUri = "";
     let currentSecret = "";
+
+    const limpiarSetupUi = () => {
+      currentOtpUri = "";
+      currentSecret = "";
+      if (totpSetupContainer) totpSetupContainer.style.display = 'none';
+      if (qrContainer) qrContainer.innerHTML = '';
+      if (totpSecretText) totpSecretText.value = '';
+      if (inpConfirmCode) inpConfirmCode.value = '';
+      if (btnTotpOpenApp) {
+        btnTotpOpenApp.href = '#';
+        btnTotpOpenApp.style.display = 'none';
+      }
+    };
+
+    const renderizarDispositivosConfiables = (uData, session) => {
+      if (!trustedDevicesList) return;
+      trustedDevicesList.innerHTML = '';
+
+      if (!uData) {
+        trustedDevicesList.textContent = 'No se pudo consultar la lista de dispositivos en el servidor.';
+        if (btnRevocarTodos) btnRevocarTodos.style.display = 'none';
+        return;
+      }
+
+      const devs = Array.isArray(uData.dispositivos_confianza) ? uData.dispositivos_confianza : [];
+      if (devs.length === 0) {
+        trustedDevicesList.textContent = 'No hay dispositivos confiables registrados. Se solicitará el código en cada inicio de sesión.';
+        if (btnRevocarTodos) btnRevocarTodos.style.display = 'none';
+        return;
+      }
+
+      const currentFp = getDeviceFingerprint();
+      if (btnRevocarTodos) btnRevocarTodos.style.display = 'inline-block';
+
+      devs.forEach((dev) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 8px; margin-bottom:4px; background:var(--bg-secondary); border-radius:6px;';
+
+        const info = document.createElement('div');
+        const title = document.createElement('div');
+        title.style.cssText = 'font-weight:600; color:var(--text-primary);';
+        const esActual = dev.device_id === currentFp;
+        title.textContent = `${dev.nombre || 'Navegador Web'}${esActual ? ' (Este dispositivo)' : ''}`;
+
+        const meta = document.createElement('div');
+        meta.style.cssText = 'font-size:10px; color:var(--text-muted);';
+        const tags = [];
+        tags.push(dev.totp_verificado ? '2FA 30 días' : 'Solo biometría');
+        if (dev.tiene_biometria) tags.push('Huella vinculada');
+        if (dev.ultimo_acceso) {
+          const fecha = new Date(dev.ultimo_acceso);
+          if (!isNaN(fecha.getTime())) {
+            tags.push(`Último uso: ${fecha.toLocaleDateString()}`);
+          }
+        }
+        meta.textContent = tags.join(' · ');
+
+        info.appendChild(title);
+        info.appendChild(meta);
+
+        const btnRev = document.createElement('button');
+        btnRev.type = 'button';
+        btnRev.className = 'btn btn-secondary btn-pill';
+        btnRev.style.cssText = 'font-size:10px; padding:3px 8px;';
+        btnRev.textContent = 'Revocar';
+        btnRev.addEventListener('click', async () => {
+          if (!confirm(`¿Revocar la confianza de "${dev.nombre || 'este dispositivo'}"?`)) return;
+          btnRev.disabled = true;
+          try {
+            await revocarDispositivoConfiable(session.username, dev.device_id);
+            if (esActual) {
+              localStorage.removeItem('crono_biometric_device_user');
+            }
+            await actualizarVistaSeguridad();
+          } catch (e) {
+            alert('Error al revocar dispositivo: ' + (e.message || e));
+            btnRev.disabled = false;
+          }
+        });
+
+        row.appendChild(info);
+        row.appendChild(btnRev);
+        trustedDevicesList.appendChild(row);
+      });
+    };
 
     const actualizarVistaSeguridad = async () => {
       const session = getSession();
@@ -565,20 +669,26 @@ class AppController {
 
       // 1. Consultar estado en servidor
       const uData = await consultarEstadoSeguridadUsuario(session.username);
-      const estaActivo = uData ? Boolean(uData.totp_activo) : false;
 
-      if (estaActivo) {
+      if (!uData) {
+        totpStatusLabel.textContent = "⚠️ No se pudo consultar el estado en el servidor";
+        totpStatusLabel.style.color = "var(--danger, #ef4444)";
+        if (btnIniciarSetupTotp) btnIniciarSetupTotp.style.display = "none";
+        if (btnDesactivarTotp) btnDesactivarTotp.style.display = "none";
+      } else if (uData.totp_activo) {
         totpStatusLabel.textContent = "✅ Activo y Protegido";
         totpStatusLabel.style.color = "var(--success, #10b981)";
         if (btnIniciarSetupTotp) btnIniciarSetupTotp.style.display = "none";
         if (btnDesactivarTotp) btnDesactivarTotp.style.display = "inline-block";
-        if (totpSetupContainer) totpSetupContainer.style.display = "none";
+        limpiarSetupUi();
       } else {
         totpStatusLabel.textContent = "⚠️ Inactivo (Se recomienda activar)";
         totpStatusLabel.style.color = "var(--warning, #f59e0b)";
         if (btnIniciarSetupTotp) btnIniciarSetupTotp.style.display = "inline-block";
         if (btnDesactivarTotp) btnDesactivarTotp.style.display = "none";
       }
+
+      renderizarDispositivosConfiables(uData, session);
 
       // 2. Estado de biometría local
       const tieneHw = await isBiometricsAvailable();
@@ -588,10 +698,12 @@ class AppController {
         btnToggleBio.style.display = "none";
       } else if (bioLocal) {
         bioStatus.textContent = "✅ Habilitado en este navegador.";
+        btnToggleBio.style.display = "inline-block";
         btnToggleBio.textContent = "🗑️ Desvincular de este equipo";
         btnToggleBio.className = "btn btn-danger btn-pill";
       } else {
         bioStatus.textContent = "Disponible para habilitar.";
+        btnToggleBio.style.display = "inline-block";
         btnToggleBio.textContent = "👆 Habilitar en este equipo";
         btnToggleBio.className = "btn btn-primary btn-pill";
       }
@@ -604,7 +716,7 @@ class AppController {
 
     const cerrarModal = () => {
       modalSeg.classList.remove('active');
-      if (totpSetupContainer) totpSetupContainer.style.display = 'none';
+      limpiarSetupUi();
     };
 
     if (btnOpenSeg) btnOpenSeg.addEventListener('click', abrirModal);
@@ -621,6 +733,12 @@ class AppController {
 
         try {
           const res = await configurarTotp(session.username, true);
+          if (res && res.ya_activo) {
+            alert(res.mensaje || "Google Authenticator ya se encuentra activo.");
+            await actualizarVistaSeguridad();
+            return;
+          }
+
           currentOtpUri = res.otpauth_uri;
           currentSecret = res.totp_secret;
 
@@ -650,7 +768,10 @@ class AppController {
           }
 
           totpSetupContainer.style.display = "block";
-          if (inpConfirmCode) inpConfirmCode.focus();
+          if (inpConfirmCode) {
+            inpConfirmCode.value = '';
+            inpConfirmCode.focus();
+          }
         } catch (e) {
           alert("Error generando clave 2FA: " + (e.message || e));
         } finally {
@@ -688,7 +809,8 @@ class AppController {
         btnConfirmarActivacion.textContent = "Validando...";
 
         try {
-          await verificarTotpUsuario(session.username, code, true);
+          await verificarTotpUsuario(session.username, code, false);
+          await actualizarVistaSeguridad();
           alert("¡Felicitaciones! Google Authenticator ha quedado activado y vinculado a tu cuenta.");
           cerrarModal();
         } catch (e) {
@@ -709,10 +831,32 @@ class AppController {
         }
         try {
           await configurarTotp(session.username, false);
+          limpiarSetupUi();
           alert("Google Authenticator ha sido desactivado.");
           await actualizarVistaSeguridad();
         } catch (e) {
           alert("Error desactivando 2FA: " + (e.message || e));
+        }
+      });
+    }
+
+    // Revocar todos los dispositivos confiables
+    if (btnRevocarTodos) {
+      btnRevocarTodos.addEventListener('click', async () => {
+        const session = getSession();
+        if (!session) return;
+        if (!confirm("¿Revocar todos los dispositivos confiables? Deberás ingresar el código de Google Authenticator en el próximo inicio de sesión en todos los equipos.")) {
+          return;
+        }
+        btnRevocarTodos.disabled = true;
+        try {
+          await revocarDispositivoConfiable(session.username, null);
+          localStorage.removeItem('crono_biometric_device_user');
+          await actualizarVistaSeguridad();
+        } catch (e) {
+          alert("Error al revocar dispositivos: " + (e.message || e));
+        } finally {
+          btnRevocarTodos.disabled = false;
         }
       });
     }
