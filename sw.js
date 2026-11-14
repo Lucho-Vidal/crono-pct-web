@@ -1,10 +1,11 @@
-// Service Worker para CRONO-WEB (PWA v1.1.0)
-const CACHE_NAME = 'crono-pwa-v1.1.0';
+// Service Worker para CRONO-WEB (PWA v1.1.1)
+const CACHE_NAME = 'crono-pwa-v1.1.1';
 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
+  './favicon.ico',
   './css/styles.css',
   './js/app.js',
   './js/supabase.js',
